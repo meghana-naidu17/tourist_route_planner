@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Route History — RouteWise</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900;1,9..144,700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+  <style>
+    body {
+      background-color: #fdf8f3;
+      background-image:
+        radial-gradient(ellipse 80% 60% at 10% 0%, rgba(194,65,12,.07) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 50% at 90% 100%, rgba(13,115,119,.06) 0%, transparent 50%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Ccircle cx='30' cy='30' r='1' fill='%23c2410c' opacity='.04'/%3E%3C/svg%3E");
+      min-height: 100vh;
+    }
+
+    /* ── PORTAL DROPDOWNS ── */
+    .portal-dropdown {
+      display: none;
+      position: fixed;
+      z-index: 99999;
+      background: #fff;
+      border: 1px solid rgba(26,23,20,.1);
+      border-radius: 12px;
+      box-shadow: 0 8px 40px rgba(26,23,20,.14), 0 2px 8px rgba(26,23,20,.06);
+      min-width: 200px;
+    }
+    .portal-dropdown.open { display: block }
+
+    #portalNotifPanel { width: 280px }
+    .notif-panel-head { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid rgba(26,23,20,.07); font-size:12px; font-weight:600; color:#1a1714 }
+    .notif-clear { font-size:11px; color:#c2410c; background:none; border:none; cursor:pointer; font-weight:600; padding:0 }
+    .notif-item { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; border-bottom:1px solid rgba(26,23,20,.06) }
+    .notif-item.unread { background:rgba(194,65,12,.03) }
+    .notif-dot { width:7px; height:7px; border-radius:50%; background:#c2410c; flex-shrink:0; margin-top:4px }
+    .notif-dot.read { background:rgba(26,23,20,.2) }
+    .notif-text { font-size:12px; color:#3d3a37; flex:1; line-height:1.4 }
+    .notif-time { font-size:10px; color:#9c9690; white-space:nowrap; margin-top:2px; font-family:'DM Mono',monospace }
+
+    #portalUserDropdown { width: 200px }
+    .ud-item { display:flex; align-items:center; gap:10px; padding:11px 16px; font-size:13px; font-weight:500; color:#3d3a37; text-decoration:none; transition:background .15s }
+    .ud-item:first-child { border-radius: 12px 12px 0 0 }
+    .ud-item:last-child  { border-radius: 0 0 12px 12px }
+    .ud-item:hover { background:rgba(26,23,20,.04) }
+    .ud-item.danger { color:#be123c }
+    .ud-icon { font-size:16px }
+
+    .notif-badge { width:8px; height:8px; background:#be123c; border-radius:50%; position:absolute; top:4px; right:4px; border:1.5px solid #fdf8f3 }
+
+    .site-header {
+      position: sticky; top: 0; z-index: 900;
+      background: rgba(253,248,243,.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(26,23,20,.08);
+    }
+
+    .header-logout-btn {
+      display:flex; align-items:center; gap:6px;
+      font-size:12px; font-weight:600; color:#c2410c;
+      background:rgba(194,65,12,.08); border:1px solid rgba(194,65,12,.2);
+      border-radius:20px; padding:6px 14px;
+      text-decoration:none; white-space:nowrap; transition:background .18s;
+    }
+    .header-logout-btn:hover { background:rgba(194,65,12,.15) }
+
+    /* ── History rows ── */
+    .hist-grid { display:flex; flex-direction:column; gap:10px }
+    .hist-row {
+      background:rgba(255,255,255,.85); border:1px solid rgba(26,23,20,.09);
+      border-radius:14px; padding:16px 20px;
+      display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+      transition:border-color .18s, box-shadow .18s;
+      opacity:0; transform:translateX(-12px);
+      box-shadow: 0 1px 4px rgba(26,23,20,.05);
+    }
+    .hist-row.show { animation:slideIn .38s cubic-bezier(.16,1,.3,1) forwards }
+    @keyframes slideIn { to{opacity:1;transform:none} }
+    .hist-row:hover { border-color:#c2410c; box-shadow:0 4px 16px rgba(26,23,20,.08) }
+    .hist-route-icons { display:flex; align-items:center; gap:6px; font-size:22px; flex-shrink:0 }
+    .hist-arrow { font-size:12px; color:#c2410c }
+    .hist-main { flex:1; min-width:140px }
+    .hist-name { font-size:14px; font-weight:600; color:#1a1714; margin-bottom:3px }
+    .hist-date { font-size:11px; color:#9c9690 }
+    .hist-stats { display:flex; gap:12px; flex-wrap:wrap; font-size:12px; font-family:'DM Mono',monospace; color:#3d3a37 }
+    .hist-transport { font-size:10px; font-weight:600; padding:3px 10px; border-radius:20px; background:rgba(253,248,243,.9); border:1px solid rgba(26,23,20,.09); color:#6b6862; white-space:nowrap; flex-shrink:0 }
+    .hist-opt { font-size:10px; padding:3px 10px; border-radius:20px; background:rgba(194,65,12,.08); color:#c2410c; border:1px solid rgba(194,65,12,.15); font-weight:600; white-space:nowrap; flex-shrink:0 }
+    .hist-empty { text-align:center; padding:60px 24px; color:#9c9690 }
+    .hist-empty-icon { font-size:48px; display:block; margin-bottom:12px }
+
+    @keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:none} }
+  </style>
+</head>
+<body>
+
+<!-- PORTAL DROPDOWNS — body level, never clipped -->
+<div class="portal-dropdown" id="portalNotifPanel">
+  <div class="notif-panel-head">
+    <span>Notifications</span>
+    <button class="notif-clear" id="notifClear">Mark all read</button>
+  </div>
+  <div class="notif-item unread">
+    <span class="notif-dot"></span>
+    <div style="flex:1"><div class="notif-text">Heavy traffic on Beach → Museum right now</div><div class="notif-time">2m ago</div></div>
+  </div>
+  <div class="notif-item unread">
+    <span class="notif-dot"></span>
+    <div style="flex:1"><div class="notif-text">Rain forecast near Fort this evening</div><div class="notif-time">18m ago</div></div>
+  </div>
+  <div class="notif-item">
+    <span class="notif-dot read"></span>
+    <div style="flex:1"><div class="notif-text">Your route to Temple was saved</div><div class="notif-time">1h ago</div></div>
+  </div>
+</div>
+
+<div class="portal-dropdown" id="portalUserDropdown">
+  <a class="ud-item" href="/dashboard"><span class="ud-icon">📊</span> Dashboard</a>
+  <a class="ud-item" href="/planner"><span class="ud-icon">🗺️</span> Plan route</a>
+  <div style="height:1px;background:rgba(26,23,20,.07);margin:4px 0"></div>
+  <a class="ud-item danger" href="/logout"><span class="ud-icon">🚪</span> Log out</a>
+</div>
+
+<div class="blob blob-1"></div><div class="blob blob-2"></div><div class="blob blob-3"></div>
+<div class="page-wrapper">
+
+  <header class="site-header">
+    <a class="header-brand" href="/dashboard">
+      <span class="logo-icon">🗺️</span>
+      <div class="logo-lockup">
+        <span class="logo-text">RouteWise</span>
+        <span class="logo-tag">AI-powered route optimisation</span>
+      </div>
+    </a>
+    <nav style="display:flex;gap:6px;align-items:center">
+      <a href="/dashboard" style="font-size:12px;font-weight:500;color:#6b6862;text-decoration:none;padding:6px 12px">Dashboard</a>
+      <a href="/planner"   style="font-size:12px;font-weight:500;color:#6b6862;text-decoration:none;padding:6px 12px">Planner</a>
+      <a href="/history"   style="font-size:12px;font-weight:600;color:#c2410c;text-decoration:none;padding:6px 12px;background:rgba(194,65,12,.08);border-radius:20px">History</a>
+    </nav>
+    <div class="header-actions" style="display:flex;align-items:center;gap:8px">
+      <div style="position:relative">
+        <button id="notifBtn" style="background:none;border:none;font-size:18px;cursor:pointer;padding:6px;border-radius:8px;transition:background .18s;position:relative" aria-label="Notifications">
+          🔔<span class="notif-badge" id="notifBadge"></span>
+        </button>
+      </div>
+      <div id="userMenuBtn" role="button" tabindex="0" aria-expanded="false"
+        style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:5px 10px 5px 5px;border-radius:24px;border:1px solid rgba(26,23,20,.1);background:rgba(253,248,243,.8);transition:background .18s">
+        <div style="width:28px;height:28px;border-radius:50%;background:#c2410c;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:900;font-size:13px;color:#fff">{{ current_user.username[0]|upper }}</div>
+        <span style="font-size:12px;font-weight:600;color:#1a1714">{{ current_user.username }}</span>
+        <span style="font-size:10px;color:#9c9690">▾</span>
+      </div>
+      <a href="/logout" class="header-logout-btn">🚪 Log out</a>
+    </div>
+  </header>
+
+  <main class="card" style="animation:fadeUp .5s cubic-bezier(.16,1,.3,1) both;background:rgba(255,255,255,.85);border:1px solid rgba(26,23,20,.09);border-radius:16px;box-shadow:0 1px 4px rgba(26,23,20,.06)">
+    <div class="card-intro">
+      <h1>Route <em>History</em></h1>
+      <p>{{ history|length }} trip{{ 's' if history|length != 1 }} planned · all saved automatically</p>
+    </div>
+
+    {% if history %}
+    <div class="hist-grid">
+      {% for r in history %}
+      <div class="hist-row" data-delay="{{ loop.index0 * 60 }}">
+        <div class="hist-route-icons">
+          <span>{{ attraction_info[r.start]['icon'] }}</span>
+          <span class="hist-arrow">→</span>
+          <span>{{ attraction_info[r.end]['icon'] }}</span>
+        </div>
+        <div class="hist-main">
+          <div class="hist-name">{{ r.start }} → {{ r.end }}</div>
+          <div class="hist-date">{{ r.searched_at.strftime('%d %b %Y · %H:%M') }}</div>
+        </div>
+        <div class="hist-stats">
+          <span>📏 {{ r.distance }} km</span>
+          <span>💰 ₹{{ r.cost }}</span>
+          <span>⏱️ {{ r.time }} min</span>
+        </div>
+        <span class="hist-transport">{{ r.transport }}</span>
+        <span class="hist-opt">{{ r.optimize }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="hist-empty">
+      <span class="hist-empty-icon">🗺️</span>
+      <p>No routes yet.<br><a href="/planner" style="color:#c2410c;font-weight:600">Plan your first route →</a></p>
+    </div>
+    {% endif %}
+  </main>
+
+  <footer class="site-footer">RouteWise © 2025</footer>
+</div>
+
+<script>
+/* PORTAL DROPDOWN SYSTEM */
+(function(){
+  const notifBtn     = document.getElementById('notifBtn');
+  const notifPanel   = document.getElementById('portalNotifPanel');
+  const notifBadge   = document.getElementById('notifBadge');
+  const notifClear   = document.getElementById('notifClear');
+  const userMenuBtn  = document.getElementById('userMenuBtn');
+  const userDropdown = document.getElementById('portalUserDropdown');
+
+  function positionBelow(trigger, panel) {
+    const r  = trigger.getBoundingClientRect();
+    const pw = panel.offsetWidth || 220;
+    let left = r.right - pw;
+    if (left < 8) left = 8;
+    panel.style.top  = (r.bottom + 6) + 'px';
+    panel.style.left = left + 'px';
+  }
+
+  let openPanel = null;
+
+  function closeAll() {
+    if (openPanel) { openPanel.classList.remove('open'); openPanel = null; }
+    userMenuBtn.setAttribute('aria-expanded','false');
+  }
+
+  function togglePanel(trigger, panel) {
+    if (panel.classList.contains('open')) { closeAll(); return; }
+    closeAll();
+    positionBelow(trigger, panel);
+    panel.classList.add('open');
+    openPanel = panel;
+    if (panel === userDropdown) userMenuBtn.setAttribute('aria-expanded','true');
+  }
+
+  notifBtn.addEventListener('click',    e => { e.stopPropagation(); togglePanel(notifBtn, notifPanel); });
+  userMenuBtn.addEventListener('click', e => { e.stopPropagation(); togglePanel(userMenuBtn, userDropdown); });
+  userMenuBtn.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); togglePanel(userMenuBtn, userDropdown); }});
+  document.addEventListener('click', closeAll);
+  notifPanel.addEventListener('click',   e => e.stopPropagation());
+  userDropdown.addEventListener('click', e => e.stopPropagation());
+  window.addEventListener('scroll', () => { if(openPanel){ positionBelow(openPanel===notifPanel?notifBtn:userMenuBtn, openPanel); }}, {passive:true});
+  window.addEventListener('resize', closeAll);
+
+  notifClear.addEventListener('click', () => {
+    document.querySelectorAll('#portalNotifPanel .notif-item').forEach(el => {
+      el.classList.remove('unread');
+      el.querySelector('.notif-dot')?.classList.add('read');
+    });
+    notifBadge.style.display = 'none';
+  });
+})();
+
+document.querySelectorAll('.hist-row[data-delay]').forEach(el => {
+  setTimeout(() => el.classList.add('show'), 100 + parseInt(el.dataset.delay || 0));
+});
+</script>
+</body>
+</html>

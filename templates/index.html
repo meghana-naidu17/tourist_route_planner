@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Planner — RouteWise</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+  <style>
+    body {
+      background-color: #fdf8f3;
+      background-image:
+        radial-gradient(ellipse 80% 60% at 10% 0%, rgba(194,65,12,.07) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 50% at 90% 100%, rgba(13,115,119,.06) 0%, transparent 50%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Ccircle cx='30' cy='30' r='1' fill='%23c2410c' opacity='.04'/%3E%3C/svg%3E");
+      min-height: 100vh;
+    }
+
+    /* ── PORTAL DROPDOWNS ── */
+    .portal-dropdown {
+      display: none;
+      position: fixed;
+      z-index: 99999;
+      background: #fff;
+      border: 1px solid rgba(26,23,20,.1);
+      border-radius: 12px;
+      box-shadow: 0 8px 40px rgba(26,23,20,.14), 0 2px 8px rgba(26,23,20,.06);
+      min-width: 200px;
+    }
+    .portal-dropdown.open { display: block }
+
+    #portalNotifPanel { width: 280px }
+    .notif-panel-head { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid rgba(26,23,20,.07); font-size:12px; font-weight:600; color:#1a1714 }
+    .notif-clear { font-size:11px; color:#c2410c; background:none; border:none; cursor:pointer; font-weight:600; padding:0 }
+    .notif-item { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; border-bottom:1px solid rgba(26,23,20,.06) }
+    .notif-item.unread { background:rgba(194,65,12,.03) }
+    .notif-dot { width:7px; height:7px; border-radius:50%; background:#c2410c; flex-shrink:0; margin-top:4px }
+    .notif-dot.read { background:rgba(26,23,20,.2) }
+    .notif-text { font-size:12px; color:#3d3a37; flex:1; line-height:1.4 }
+    .notif-time { font-size:10px; color:#9c9690; white-space:nowrap; margin-top:2px; font-family:'DM Mono',monospace }
+
+    #portalUserDropdown { width: 200px }
+    .ud-item { display:flex; align-items:center; gap:10px; padding:11px 16px; font-size:13px; font-weight:500; color:#3d3a37; text-decoration:none; transition:background .15s }
+    .ud-item:first-child { border-radius:12px 12px 0 0 }
+    .ud-item:last-child  { border-radius:0 0 12px 12px }
+    .ud-item:hover { background:rgba(26,23,20,.04) }
+    .ud-item.danger { color:#be123c }
+    .ud-icon { font-size:16px }
+
+    .notif-badge { width:8px; height:8px; background:#be123c; border-radius:50%; position:absolute; top:4px; right:4px; border:1.5px solid #fdf8f3 }
+
+    /* ── HEADER ── */
+    .site-header {
+      position: sticky; top: 0; z-index: 900;
+      background: rgba(253,248,243,.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(26,23,20,.08);
+    }
+
+    .header-logout-btn {
+      display:flex; align-items:center; gap:6px;
+      font-size:12px; font-weight:600; color:#c2410c;
+      background:rgba(194,65,12,.08); border:1px solid rgba(194,65,12,.2);
+      border-radius:20px; padding:6px 14px;
+      text-decoration:none; white-space:nowrap; transition:background .18s;
+    }
+    .header-logout-btn:hover { background:rgba(194,65,12,.15) }
+
+    /* search suggestions */
+    .search-suggestions {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      background: #fff; border: 1px solid rgba(26,23,20,.1); border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(26,23,20,.1); z-index: 99999; overflow: hidden;
+    }
+    .search-sug-item { padding: 10px 14px; font-size: 13px; cursor: pointer; transition: background .15s }
+    .search-sug-item:hover { background: rgba(194,65,12,.05) }
+  </style>
+</head>
+<body>
+
+<!-- PORTAL DROPDOWNS — body level, never clipped -->
+<div class="portal-dropdown" id="portalNotifPanel">
+  <div class="notif-panel-head">
+    <span>Notifications</span>
+    <button class="notif-clear" id="notifClear">Mark all read</button>
+  </div>
+  <div class="notif-item unread">
+    <span class="notif-dot"></span>
+    <div style="flex:1"><div class="notif-text">Heavy traffic on Beach → Museum right now</div><div class="notif-time">2m ago</div></div>
+  </div>
+  <div class="notif-item unread">
+    <span class="notif-dot"></span>
+    <div style="flex:1"><div class="notif-text">Rain forecast near Fort this evening</div><div class="notif-time">18m ago</div></div>
+  </div>
+  <div class="notif-item">
+    <span class="notif-dot read"></span>
+    <div style="flex:1"><div class="notif-text">Your route to Temple was saved</div><div class="notif-time">1h ago</div></div>
+  </div>
+</div>
+
+<div class="portal-dropdown" id="portalUserDropdown">
+  <a class="ud-item" href="/dashboard"><span class="ud-icon">📊</span> Dashboard</a>
+  <a class="ud-item" href="/history"><span class="ud-icon">🕘</span> Route history</a>
+  <div style="height:1px;background:rgba(26,23,20,.07);margin:4px 0"></div>
+  <a class="ud-item danger" href="/logout"><span class="ud-icon">🚪</span> Log out</a>
+</div>
+
+<div class="blob blob-1"></div><div class="blob blob-2"></div><div class="blob blob-3"></div>
+<div class="page-wrapper">
+
+<!-- HEADER -->
+<header class="site-header" id="siteHeader">
+  <a class="header-brand" href="/dashboard">
+    <span class="logo-icon">🗺️</span>
+    <div class="logo-lockup">
+      <span class="logo-text">RouteWise</span>
+      <span class="logo-tag">AI-powered route optimisation</span>
+    </div>
+  </a>
+
+  <nav style="display:flex;gap:6px;align-items:center">
+    <a href="/dashboard" style="font-size:12px;font-weight:500;color:#6b6862;text-decoration:none;padding:6px 12px">Dashboard</a>
+    <a href="/planner"   style="font-size:12px;font-weight:600;color:#c2410c;text-decoration:none;padding:6px 12px;background:rgba(194,65,12,.08);border-radius:20px">Planner</a>
+    <a href="/history"   style="font-size:12px;font-weight:500;color:#6b6862;text-decoration:none;padding:6px 12px">History</a>
+  </nav>
+
+  <div class="header-search">
+    <span class="header-search-icon">🔍</span>
+    <input type="text" id="headerSearch" placeholder="Search attractions…" autocomplete="off"/>
+    <div class="search-suggestions" id="searchSuggestions"></div>
+  </div>
+
+  <div class="header-actions" style="display:flex;align-items:center;gap:8px">
+    <div style="position:relative">
+      <button id="notifBtn" style="background:none;border:none;font-size:18px;cursor:pointer;padding:6px;border-radius:8px;transition:background .18s;position:relative" aria-label="Notifications">
+        🔔<span class="notif-badge" id="notifBadge"></span>
+      </button>
+    </div>
+    <div id="userMenuBtn" role="button" tabindex="0" aria-expanded="false"
+      style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:5px 10px 5px 5px;border-radius:24px;border:1px solid rgba(26,23,20,.1);background:rgba(253,248,243,.8);transition:background .18s">
+      <div style="width:28px;height:28px;border-radius:50%;background:#c2410c;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:900;font-size:13px;color:#fff">
+        {{ current_user.username[0]|upper if current_user.is_authenticated else 'G' }}
+      </div>
+      <span style="font-size:12px;font-weight:600;color:#1a1714">
+        {{ current_user.username if current_user.is_authenticated else 'Guest' }}
+      </span>
+      <span style="font-size:10px;color:#9c9690">▾</span>
+    </div>
+    <a href="/logout" class="header-logout-btn">🚪 Log out</a>
+  </div>
+</header>
+
+<!-- Flash messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+    <div class="auth-{{ 'success' if cat=='success' else 'alert-error' }}" style="animation:fadeUp .4s ease both">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+<!-- Recent routes strip -->
+{% if history %}
+<div class="history-strip glass">
+  <div class="history-label">🕘 Your Recent Routes</div>
+  <div class="history-chips">
+    {% for r in history %}
+    <div class="history-chip">
+      {{ attraction_info[r.start]['icon'] }} {{ r.start }}
+      <span style="color:#c2410c;font-size:10px">→</span>
+      {{ attraction_info[r.end]['icon'] }} {{ r.end }}
+      <span style="color:#b0ada8;font-size:10px;font-family:'DM Mono',monospace">{{ r.transport }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- GPS banner -->
+<div class="gps-banner" id="gpsBanner">
+  <div class="gps-left">
+    <div class="gps-pulse-ring"><span class="gps-icon" id="gpsIcon">📡</span></div>
+    <div>
+      <div class="gps-title" id="gpsTitle">Detect my location</div>
+      <div class="gps-sub" id="gpsSub">Auto-selects nearest attraction &amp; tracks you live</div>
+    </div>
+  </div>
+  <button class="gps-btn" id="gpsBtn" type="button">Use My Location</button>
+</div>
+
+{% if nearest %}
+<div class="nearest-card glass">
+  <div class="nearest-icon">{{ attraction_info[nearest]['icon'] }}</div>
+  <div class="nearest-info">
+    <div class="nearest-name">{{ nearest }}<span class="nearest-cat">{{ attraction_info[nearest]['category'] }}</span></div>
+    <div class="nearest-dist">📍 Nearest — {{ nearest_dist }} km from your GPS</div>
+  </div>
+  <div class="nearest-badge">Auto-selected as start</div>
+</div>
+{% endif %}
+
+<!-- Main card -->
+<main class="card">
+  <div class="card-intro">
+    <h1>Find Your <em>Perfect</em> Route</h1>
+    <p>Live traffic · GPS tracking · Scenic stops · Bypass roads · Live weather · Full cost breakdown.</p>
+  </div>
+
+  <form action="/find_route" method="post" class="route-form" id="routeForm">
+    <input type="hidden" name="user_lat" id="hidLat" value="{{ user_lat or '' }}"/>
+    <input type="hidden" name="user_lng" id="hidLng" value="{{ user_lng or '' }}"/>
+
+    <div class="form-row two-col">
+      <div class="form-group">
+        <label for="start"><span class="label-icon">📍</span> Start</label>
+        <div class="select-wrap">
+          <select name="start" id="start">
+            {% for place in places %}
+            <option value="{{ place }}" {% if start==place or nearest==place %}selected{% endif %}>
+              {{ attraction_info[place]['icon'] }} {{ place }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="end"><span class="label-icon">🏁</span> Destination</label>
+        <div class="select-wrap">
+          <select name="end" id="end">
+            {% for place in places %}
+            <option value="{{ place }}" {% if end==place %}selected{% endif %}>
+              {{ attraction_info[place]['icon'] }} {{ place }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row two-col">
+      <div class="form-group">
+        <label><span class="label-icon">🚦</span> Transport</label>
+        <div class="transport-pills">
+          {% for mode, emoji in [('Car','🚗'),('Bike','🏍️'),('Bus','🚌'),('Walking','🚶')] %}
+          <label class="pill">
+            <input type="radio" name="transport" value="{{ mode }}" {% if transport==mode or (not transport and mode=='Car') %}checked{% endif %}/>
+            <span>{{ emoji }} {{ mode }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-group">
+        <label><span class="label-icon">🎯</span> Optimise For</label>
+        <div class="transport-pills">
+          {% for opt, lbl in [('distance','📏 Distance'),('cost','💰 Cost'),('time','⏱️ Time')] %}
+          <label class="pill">
+            <input type="radio" name="optimize" value="{{ opt }}" {% if optimize==opt or (not optimize and opt=='distance') %}checked{% endif %}/>
+            <span>{{ lbl }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row two-col">
+      <div class="form-group">
+        <label><span class="label-icon">🌦️</span> Weather</label>
+        <div class="select-wrap">
+          <select name="weather">
+            <option {% if weather=='Sunny' %}selected{% endif %}>Sunny</option>
+            <option {% if weather=='Cloudy' %}selected{% endif %}>Cloudy</option>
+            <option {% if weather=='Rainy' %}selected{% endif %}>Rainy</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label><span class="label-icon">🕐</span> Time of Day</label>
+        <div class="select-wrap">
+          <select name="time_of_day">
+            <option {% if time_of_day=='Peak' %}selected{% endif %}>Peak</option>
+            <option {% if time_of_day=='OffPeak' %}selected{% endif %}>OffPeak</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="liveWeatherPreview" style="display:none;background:rgba(13,115,119,.05);border:1px solid rgba(13,115,119,.15);border-radius:10px;padding:10px 14px;font-size:12px;color:#3d3a37">
+      <span id="lwIcon">🌤️</span> <strong id="lwCond">—</strong> · <span id="lwTemp">—</span>°C · 💧<span id="lwHumid">—</span>% · 💨<span id="lwWind">—</span> km/h · 🌧️ <span id="lwRain">—</span>% rain
+      <span style="font-size:10px;color:#b0ada8;margin-left:8px" id="lwSrc"></span>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn-find" id="findBtn">
+        <span id="btnLabel">Find Best Route</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+      <button type="submit" name="refresh_traffic" value="1" class="btn-refresh">🔄 Refresh Traffic</button>
+    </div>
+  </form>
+
+  {% if error %}<div class="alert-error">{{ error }}</div>{% endif %}
+
+  {% if primary %}
+  <section class="results-section">
+    <div class="results-header">
+      <h2>Your Route</h2>
+      <span class="badge">Best for {{ primary.optimized_for }}</span>
+      {% if high_bypass_count %}<span class="bypass-badge">⚠️ {{ high_bypass_count }} bypass{{ 'es' if high_bypass_count>1 }} available</span>{% endif %}
+      {% if user_lat and user_lng %}<span class="live-badge">🔴 Live tracking ON</span>{% endif %}
+    </div>
+
+    <div class="map-wrap">
+      <div id="leafletMap"></div>
+      <div class="map-controls">
+        <button id="btnCenter" class="map-ctrl-btn">📍 Centre on me</button>
+        <div class="map-legend">
+          <span class="ml-item"><span class="ml-dot green"></span>Start</span>
+          <span class="ml-item"><span class="ml-dot red"></span>End</span>
+          <span class="ml-item"><span class="ml-dot blue"></span>Waypoint</span>
+          <span class="ml-item"><span class="ml-dot orange"></span>Scenic</span>
+          {% if user_lat and user_lng %}<span class="ml-item"><span class="ml-dot purple"></span>You</span>{% endif %}
+          <span class="ml-item"><span class="ml-line green-line"></span>Clear</span>
+          <span class="ml-item"><span class="ml-line amber-line"></span>Medium</span>
+          <span class="ml-item"><span class="ml-line red-line"></span>High</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="route-path">
+      {% for seg in segments %}
+      <div class="attraction-stop" data-delay="{{ loop.index0 * 140 }}">
+        <div class="stop-dot {% if loop.first %}first{% elif loop.last %}last{% endif %}"></div>
+        <span class="stop-icon">{{ attraction_info[seg.from]['icon'] }}</span>
+        <div class="stop-body">
+          <div class="stop-name-row">
+            <span class="stop-name">{{ seg.from }}</span>
+            <span class="stop-cat">{{ attraction_info[seg.from]['category'] }}</span>
+            <span class="stop-rating">⭐ {{ attraction_info[seg.from]['rating'] }}</span>
+          </div>
+          <div class="stop-tagline">{{ attraction_info[seg.from]['tagline'] }}</div>
+          <div class="stop-highlights">{% for h in attraction_info[seg.from]['highlights'] %}<span class="hl-tag">{{ h }}</span>{% endfor %}</div>
+          <div class="stop-besttime">🕐 Best time: {{ attraction_info[seg.from]['best_time'] }}</div>
+        </div>
+      </div>
+      <div class="road-segment {% if seg.traffic=='high' %}high-traffic{% elif seg.traffic=='medium' %}med-traffic{% endif %}" data-delay="{{ loop.index0 * 140 + 80 }}">
+        <div class="rs-line-wrap"><span class="rs-line"></span><span class="rs-emoji">{{ transport_emoji }}</span><span class="rs-line"></span></div>
+        <div class="rs-meta">
+          <span class="rs-dist">{{ seg.distance }} km</span>
+          <span class="rs-time">{{ seg.time }} min</span>
+          <span class="rs-traffic t-{{ seg.traffic|capitalize }}">{% if seg.traffic=='high' %}🔴{% elif seg.traffic=='medium' %}🟡{% else %}🟢{% endif %} {{ seg.traffic|capitalize }}</span>
+        </div>
+        {% if seg.weather %}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:#6b6862;margin:6px 0;font-family:'DM Mono',monospace">
+          <span>{{ seg.weather.icon if seg.weather.icon else '🌤️' }} {{ seg.weather.condition }}</span>
+          <span>🌡️ {{ seg.weather.temperature }}°C</span>
+          <span>💧 Rain: {{ seg.weather.rain_probability }}%</span>
+          <span>💨 {{ seg.weather.wind_speed }} km/h</span>
+          {% if seg.weather.source %}<span style="color:#b0ada8;font-size:10px">{{ seg.weather.source }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if seg.via %}
+        <div class="via-stops">
+          {% for v in seg.via %}
+          <div class="via-chip"><span class="via-icon">{{ v.icon }}</span><div><div class="via-name">{{ v.name }}</div><div class="via-desc">{{ v.desc }}</div></div></div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if seg.traffic=='high' and seg.bypasses %}
+        <div class="bypass-block">
+          <div class="bypass-header">⚠️ High traffic — alternate roads available</div>
+          {% for bp in seg.bypasses %}
+          <div class="bypass-option">
+            <div class="bypass-label">{{ bp.label }}</div>
+            <div class="bypass-meta">
+              <span>+{{ bp.extra_km }} km</span>
+              <span class="{{ 'bypass-save' if bp.extra_min < 0 else 'bypass-add' }}">
+                {% if bp.extra_min < 0 %}⚡ saves {{ -bp.extra_min }} min{% else %}+{{ bp.extra_min }} min{% endif %}
+              </span>
+            </div>
+            <div class="bypass-desc">{{ bp.desc }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% if loop.last %}
+      <div class="attraction-stop" data-delay="{{ (loop.index0+1) * 140 }}">
+        <div class="stop-dot last"></div>
+        <span class="stop-icon">{{ attraction_info[seg.to]['icon'] }}</span>
+        <div class="stop-body">
+          <div class="stop-name-row">
+            <span class="stop-name">{{ seg.to }}</span>
+            <span class="stop-cat">{{ attraction_info[seg.to]['category'] }}</span>
+            <span class="stop-rating">⭐ {{ attraction_info[seg.to]['rating'] }}</span>
+          </div>
+          <div class="stop-tagline">{{ attraction_info[seg.to]['tagline'] }}</div>
+          <div class="stop-highlights">{% for h in attraction_info[seg.to]['highlights'] %}<span class="hl-tag">{{ h }}</span>{% endfor %}</div>
+          <div class="stop-besttime">🕐 Best time: {{ attraction_info[seg.to]['best_time'] }}</div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card" data-delay="0"   data-target="{{ primary.distance }}" data-prefix="" data-suffix=" km"><div class="stat-icon">📏</div><div class="stat-value">0 km</div><div class="stat-label">Distance</div></div>
+      <div class="stat-card highlight" data-delay="130" data-target="{{ primary.cost }}"     data-prefix="₹" data-suffix=""><div class="stat-icon">💰</div><div class="stat-value">₹0</div><div class="stat-label">Total Cost</div></div>
+      <div class="stat-card" data-delay="260" data-target="{{ primary.time }}"     data-prefix="" data-suffix=" min"><div class="stat-icon">⏱️</div><div class="stat-value">0 min</div><div class="stat-label">Travel Time</div></div>
+    </div>
+
+    {% if cost_items %}
+    <div class="cost-breakdown">
+      <div class="cb-header"><h4>💳 Cost Breakdown</h4><span>How your ₹{{ cost_total }} is being used</span></div>
+      <div class="cb-body">
+        {% for item in cost_items %}
+        <div class="cb-row" data-delay="{{ loop.index0 * 110 }}" data-pct="{{ item.pct }}">
+          <div class="cb-icon">{{ item.icon }}</div>
+          <div class="cb-info"><div class="cb-name">{{ item.name }}</div><div class="cb-desc">{{ item.desc }}</div></div>
+          <div class="cb-bar-wrap"><div class="cb-bar"><div class="cb-bar-fill {{ item.bar }}" data-pct="{{ item.pct }}"></div></div><span style="font-size:10px;color:#9c9690;font-family:'DM Mono',monospace;min-width:28px;text-align:right">{{ item.pct }}%</span></div>
+          <div class="cb-amount">₹{{ item.amount }}</div>
+        </div>
+        {% if not loop.last %}<div class="cb-divider"></div>{% endif %}
+        {% endfor %}
+      </div>
+      <div class="cb-total"><div class="cb-total-label">Total trip cost <span>({{ transport }})</span></div><div class="cb-total-amount" id="cbTotal">₹0</div></div>
+    </div>
+    {% endif %}
+
+    {% if alternatives %}
+    <div>
+      <div class="alt-heading">Alternative Route Options</div>
+      <div class="alt-grid">
+        {% for alt in alternatives %}
+        <div class="alt-card" data-delay="{{ loop.index0*150 }}">
+          <div class="alt-label">Optimised for <strong>{{ alt.optimized_for }}</strong></div>
+          <div class="alt-path">{{ alt.path|join(' → ') }}</div>
+          <div class="alt-stats"><span>📏 {{ alt.distance }} km</span><span>💰 ₹{{ alt.cost }}</span><span>⏱️ {{ alt.time }} min</span></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+</main>
+
+<footer class="site-footer">
+  AI-Powered Tourist Route Planner | RouteWise © 2026
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ══════════════════════════════════════
+   PORTAL DROPDOWN SYSTEM — same on all pages
+══════════════════════════════════════ */
+(function(){
+  const notifBtn     = document.getElementById('notifBtn');
+  const notifPanel   = document.getElementById('portalNotifPanel');
+  const notifBadge   = document.getElementById('notifBadge');
+  const notifClear   = document.getElementById('notifClear');
+  const userMenuBtn  = document.getElementById('userMenuBtn');
+  const userDropdown = document.getElementById('portalUserDropdown');
+
+  function positionBelow(trigger, panel) {
+    const r  = trigger.getBoundingClientRect();
+    const pw = panel.offsetWidth || 220;
+    let left = r.right - pw;
+    if (left < 8) left = 8;
+    panel.style.top  = (r.bottom + 6) + 'px';
+    panel.style.left = left + 'px';
+  }
+
+  let openPanel = null;
+
+  function closeAll() {
+    if (openPanel) { openPanel.classList.remove('open'); openPanel = null; }
+    userMenuBtn.setAttribute('aria-expanded','false');
+  }
+
+  function togglePanel(trigger, panel) {
+    if (panel.classList.contains('open')) { closeAll(); return; }
+    closeAll();
+    positionBelow(trigger, panel);
+    panel.classList.add('open');
+    openPanel = panel;
+    if (panel === userDropdown) userMenuBtn.setAttribute('aria-expanded','true');
+  }
+
+  notifBtn.addEventListener('click',    e => { e.stopPropagation(); togglePanel(notifBtn, notifPanel); });
+  userMenuBtn.addEventListener('click', e => { e.stopPropagation(); togglePanel(userMenuBtn, userDropdown); });
+  userMenuBtn.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); togglePanel(userMenuBtn,userDropdown); }});
+  document.addEventListener('click', closeAll);
+  notifPanel.addEventListener('click',   e => e.stopPropagation());
+  userDropdown.addEventListener('click', e => e.stopPropagation());
+  window.addEventListener('scroll', () => { if(openPanel){ positionBelow(openPanel===notifPanel?notifBtn:userMenuBtn, openPanel); }}, {passive:true});
+  window.addEventListener('resize', closeAll);
+
+  notifClear.addEventListener('click', () => {
+    document.querySelectorAll('#portalNotifPanel .notif-item').forEach(el => {
+      el.classList.remove('unread');
+      el.querySelector('.notif-dot')?.classList.add('read');
+    });
+    notifBadge.style.display='none';
+  });
+
+  /* Search suggestions */
+  const searchInput  = document.getElementById('headerSearch');
+  const suggestions  = document.getElementById('searchSuggestions');
+  const places = {{ attraction_info|tojson }};
+  const placeNames = Object.keys(places);
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.toLowerCase().trim();
+      if (!q) { suggestions.style.display='none'; return; }
+      const hits = placeNames.filter(n => n.toLowerCase().includes(q));
+      if (!hits.length) { suggestions.style.display='none'; return; }
+      suggestions.innerHTML = hits.map(n =>
+        `<div class="search-sug-item" data-val="${n}">${places[n].icon} ${n} <span style="font-size:10px;color:#9c9690">${places[n].category}</span></div>`
+      ).join('');
+      suggestions.style.display = 'block';
+    });
+    suggestions.addEventListener('click', e => {
+      const item = e.target.closest('.search-sug-item');
+      if (!item) return;
+      document.getElementById('start').value = item.dataset.val;
+      searchInput.value = '';
+      suggestions.style.display = 'none';
+    });
+    document.addEventListener('click', e => { if (!searchInput.contains(e.target)) suggestions.style.display='none'; });
+  }
+})();
+
+/* ── GPS + live weather ── */
+const gpsBtn=document.getElementById('gpsBtn'),gpsIcon=document.getElementById('gpsIcon');
+const gpsTtl=document.getElementById('gpsTitle'),gpsSub=document.getElementById('gpsSub');
+const hidLat=document.getElementById('hidLat'),hidLng=document.getElementById('hidLng');
+gpsBtn&&gpsBtn.addEventListener('click',()=>{
+  if(!navigator.geolocation){gpsTtl.textContent='Not supported';return;}
+  gpsTtl.textContent='Locating…';gpsIcon.textContent='⏳';gpsBtn.disabled=true;
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const lat=pos.coords.latitude.toFixed(6),lng=pos.coords.longitude.toFixed(6);
+    hidLat.value=lat;hidLng.value=lng;
+    gpsIcon.textContent='✅';gpsBtn.textContent='✅ Locked';
+    gpsBtn.style.background='#0d7377';gpsBtn.style.color='#fff';gpsBtn.disabled=false;
+    fetch(`/api/weather?lat=${lat}&lng=${lng}`).then(r=>r.json()).then(d=>{
+      if(!d.error){
+        const prev=document.getElementById('liveWeatherPreview');
+        prev.style.display='block';
+        document.getElementById('lwIcon').textContent=d.icon||'🌤️';
+        document.getElementById('lwCond').textContent=d.condition;
+        document.getElementById('lwTemp').textContent=d.temperature;
+        document.getElementById('lwHumid').textContent=d.humidity;
+        document.getElementById('lwWind').textContent=d.wind_speed;
+        document.getElementById('lwRain').textContent=d.rain_probability;
+        document.getElementById('lwSrc').textContent=d.source;
+        const wSel=document.querySelector('select[name="weather"]');
+        if(wSel&&d.category)wSel.value=d.category;
+      }
+    }).catch(()=>{});
+    fetch('/api/nearest?lat='+lat+'&lng='+lng).then(r=>r.json()).then(d=>{
+      if(d.name){document.getElementById('start').value=d.name;gpsTtl.textContent='📍 '+d.icon+' '+d.name+' — '+d.dist_km+' km';gpsSub.textContent='Auto-selected. Click Find Best Route.';}
+    }).catch(()=>{gpsTtl.textContent='Locked ('+lat+','+lng+')';gpsSub.textContent='Click Find Best Route.';});
+  },()=>{gpsTtl.textContent='Permission denied';gpsIcon.textContent='❌';gpsBtn.disabled=false;},{timeout:10000});
+});
+
+{% if primary %}
+/* ── Leaflet map ── */
+(function(){
+  const ai={{ attraction_info|tojson }},segs={{ segments|tojson }},rp={{ primary.path|tojson }};
+  const ulat="{{ user_lat }}",ulng="{{ user_lng }}";
+  const lats=rp.map(n=>ai[n].lat),lngs=rp.map(n=>ai[n].lng);
+  const map=L.map('leafletMap').setView([lats.reduce((a,b)=>a+b,0)/lats.length,lngs.reduce((a,b)=>a+b,0)/lngs.length],14);
+  window._map=map;
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
+  segs.forEach(seg=>{
+    const pa=ai[seg.from],pb=ai[seg.to],lvl=seg.traffic;
+    const color=lvl==='high'?'#be123c':lvl==='medium'?'#b45309':'#15803d';
+    L.polyline([[pa.lat,pa.lng],[pb.lat,pb.lng]],{color:'rgba(26,23,20,.1)',weight:10}).addTo(map);
+    const ln=L.polyline([[pa.lat,pa.lng],[pb.lat,pb.lng]],{color,weight:6,opacity:.92,dashArray:lvl==='high'?'10 6':lvl==='medium'?'8 4':'',lineCap:'round'}).addTo(map);
+    const wTxt=seg.weather?'<br>'+seg.weather.icon+' '+seg.weather.condition+' · '+seg.weather.temperature+'°C':'';
+    const bpTxt=seg.bypasses&&seg.bypasses.length?'<br>⚠️ '+seg.bypasses.map(b=>'• '+b.label).join(', '):'';
+    ln.bindTooltip('<b>'+seg.from+' → '+seg.to+'</b><br>📏 '+seg.distance+' km 💰 ₹'+seg.cost+' ⏱️ '+seg.time+' min<br>Traffic: <b>'+seg.traffic+'</b>'+wTxt+bpTxt,{sticky:true,maxWidth:260});
+    if(seg.via&&seg.via.length){
+      const mLat=(pa.lat+pb.lat)/2,mLng=(pa.lng+pb.lng)/2;
+      seg.via.forEach((v,i)=>{
+        const off=0.003*(i-(seg.via.length-1)/2);
+        const icon=L.divIcon({className:'',html:'<div style="background:#ea580c;color:#fff;border:2px solid #fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.2)">'+v.icon+'</div>',iconSize:[28,28],iconAnchor:[14,14]});
+        L.marker([mLat+off,mLng+off],{icon}).addTo(map).bindPopup('<b>'+v.icon+' '+v.name+'</b><br>'+v.desc);
+      });
+    }
+  });
+  const pc=rp.map(n=>[ai[n].lat,ai[n].lng]);
+  const al=L.polyline(pc,{color:'rgba(255,255,255,.6)',weight:2.5,dashArray:'10 12',dashOffset:'0',lineCap:'round'}).addTo(map);
+  let off=0;setInterval(()=>{off=(off-1+22)%22;al.setStyle({dashOffset:String(off)});},35);
+  rp.forEach((name,idx)=>{
+    const info=ai[name],isF=idx===0,isL=idx===rp.length-1;
+    const color=isF?'#0d7377':isL?'#c2410c':'#1d4ed8',sz=isF||isL?42:32;
+    const icon=L.divIcon({className:'',html:'<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+color+';border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;font-size:'+(sz>35?20:15)+'px">'+info.icon+'</div>',iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]});
+    L.marker([info.lat,info.lng],{icon}).addTo(map).bindPopup('<b>'+info.icon+' '+name+'</b><br>'+(isF?'📍 Start':isL?'🏁 End':'Stop '+idx)+'<br>'+info.category+' · ⭐ '+info.rating+'<br><i>'+info.tagline+'</i>');
+  });
+  let uM=null,uC=null;
+  function placeUserDot(lat,lng){
+    if(uM)map.removeLayer(uM);if(uC)map.removeLayer(uC);
+    uC=L.circle([lat,lng],{radius:80,color:'#6d28d9',fillColor:'#6d28d9',fillOpacity:.1,weight:1.5}).addTo(map);
+    const icon=L.divIcon({className:'',html:'<div style="width:18px;height:18px;border-radius:50%;background:#6d28d9;border:2.5px solid #fff"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+    uM=L.marker([lat,lng],{icon,zIndexOffset:1000}).addTo(map).bindPopup('<b>📍 You are here</b>');
+  }
+  if(ulat&&ulng){placeUserDot(parseFloat(ulat),parseFloat(ulng));}
+  if(navigator.geolocation)navigator.geolocation.watchPosition(p=>placeUserDot(p.coords.latitude,p.coords.longitude),null,{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
+  document.getElementById('btnCenter')?.addEventListener('click',()=>{if(uM)map.flyTo(uM.getLatLng(),15,{animate:true,duration:1.2});else map.flyToBounds(pc.map(c=>L.latLng(c)),{padding:[40,40]});});
+  map.fitBounds(pc.map(c=>L.latLng(c)),{padding:[44,44]});
+})();
+{% endif %}
+
+/* ── Animations ── */
+document.getElementById('findBtn')?.addEventListener('click',function(e){
+  const btn=this,rect=btn.getBoundingClientRect(),r=document.createElement('span');r.className='ripple';
+  const sz=Math.max(btn.offsetWidth,btn.offsetHeight);r.style.cssText='width:'+sz+'px;height:'+sz+'px;left:'+(e.clientX-rect.left-sz/2)+'px;top:'+(e.clientY-rect.top-sz/2)+'px';
+  btn.appendChild(r);setTimeout(()=>r.remove(),700);document.getElementById('btnLabel').textContent='Computing…';btn.style.opacity='0.82';
+});
+document.querySelectorAll('.attraction-stop[data-delay],.road-segment[data-delay]').forEach(el=>{setTimeout(()=>el.classList.add('visible'),200+parseInt(el.dataset.delay||0));});
+document.querySelectorAll('.via-chip').forEach((el,i)=>setTimeout(()=>el.classList.add('show'),800+i*80));
+document.querySelectorAll('.bypass-option').forEach((el,i)=>setTimeout(()=>el.classList.add('show'),900+i*90));
+function animCount(el,to,pre,suf,dur=900){const s=performance.now();(function tick(now){const p=Math.min((now-s)/dur,1),ease=1-Math.pow(1-p,4);el.textContent=pre+Math.round(to*ease)+suf;if(p<1)requestAnimationFrame(tick);})(performance.now());}
+document.querySelectorAll('.stat-card[data-target]').forEach(card=>{const d=parseInt(card.dataset.delay)||0;setTimeout(()=>{card.classList.add('visible');animCount(card.querySelector('.stat-value'),parseInt(card.dataset.target),card.dataset.prefix,card.dataset.suffix);},650+d);});
+(function(){const cbTotal=document.getElementById('cbTotal'),totalVal={{ cost_total or 0 }};document.querySelectorAll('.cb-row[data-delay]').forEach(row=>{const d=parseInt(row.dataset.delay)||0;setTimeout(()=>{row.classList.add('show');const fill=row.querySelector('.cb-bar-fill');if(fill)fill.style.width=fill.dataset.pct+'%';},800+d);});if(cbTotal&&totalVal)setTimeout(()=>animCount(cbTotal,totalVal,'₹',''),900);})();
+document.querySelectorAll('.stat-card').forEach(card=>{card.addEventListener('mousemove',e=>{const rect=card.getBoundingClientRect(),x=(e.clientX-rect.left)/rect.width-.5,y=(e.clientY-rect.top)/rect.height-.5;card.style.transform='translateY(-5px) rotateX('+(-y*8)+'deg) rotateY('+(x*8)+'deg)';});card.addEventListener('mouseleave',()=>card.style.transform='');});
+document.querySelectorAll('.alt-card[data-delay]').forEach(c=>setTimeout(()=>c.classList.add('visible'),1100+parseInt(c.dataset.delay||0)));
+</script>
+</body>
+</html>

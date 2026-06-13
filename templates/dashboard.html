@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Dashboard — RouteWise</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+  <style>
+    /* ══════════════════════════════════════
+       BACKGROUND  — warm topographic feel
+    ══════════════════════════════════════ */
+    body {
+      background-color: #fdf8f3;
+      background-image:
+        radial-gradient(ellipse 80% 60% at 10% 0%, rgba(194,65,12,.07) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 50% at 90% 100%, rgba(13,115,119,.06) 0%, transparent 50%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(251,191,36,.04) 0%, transparent 60%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Ccircle cx='30' cy='30' r='1' fill='%23c2410c' opacity='.04'/%3E%3C/svg%3E");
+      min-height: 100vh;
+    }
+
+    /* ══════════════════════════════════════
+       PORTAL DROPDOWNS — attached to body,
+       positioned via JS getBoundingClientRect
+    ══════════════════════════════════════ */
+    .portal-dropdown {
+      display: none;
+      position: fixed;
+      z-index: 99999;
+      background: #fff;
+      border: 1px solid rgba(26,23,20,.1);
+      border-radius: 12px;
+      box-shadow: 0 8px 40px rgba(26,23,20,.14), 0 2px 8px rgba(26,23,20,.06);
+      min-width: 200px;
+    }
+    .portal-dropdown.open { display: block }
+
+    /* Notif panel */
+    #portalNotifPanel { width: 280px }
+    .notif-panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px; border-bottom: 1px solid rgba(26,23,20,.07);
+      font-size: 12px; font-weight: 600; color: #1a1714;
+    }
+    .notif-clear {
+      font-size: 11px; color: #c2410c; background: none; border: none;
+      cursor: pointer; font-weight: 600; padding: 0;
+    }
+    .notif-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 14px; border-bottom: 1px solid rgba(26,23,20,.06);
+    }
+    .notif-item.unread { background: rgba(194,65,12,.03) }
+    .notif-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #c2410c; flex-shrink: 0; margin-top: 4px;
+    }
+    .notif-dot.read { background: rgba(26,23,20,.2) }
+    .notif-text { font-size: 12px; color: #3d3a37; flex: 1; line-height: 1.4 }
+    .notif-time { font-size: 10px; color: #9c9690; white-space: nowrap; margin-top: 2px; font-family:'DM Mono',monospace }
+
+    /* User dropdown */
+    #portalUserDropdown { width: 200px }
+    .ud-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 16px; font-size: 13px; font-weight: 500;
+      color: #3d3a37; text-decoration: none;
+      transition: background .15s;
+    }
+    .ud-item:hover { background: rgba(26,23,20,.04) }
+    .ud-item.danger { color: #be123c }
+    .ud-icon { font-size: 16px }
+
+    /* ══════════════════════════════════════
+       HEADER
+    ══════════════════════════════════════ */
+    .site-header {
+      position: sticky; top: 0;
+      z-index: 900;
+      background: rgba(253,248,243,.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(26,23,20,.08);
+    }
+
+    /* ══════════════════════════════════════
+       LOGOUT always visible
+    ══════════════════════════════════════ */
+    .header-logout-btn {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600;
+      color: #c2410c;
+      background: rgba(194,65,12,.08);
+      border: 1px solid rgba(194,65,12,.2);
+      border-radius: 20px; padding: 6px 14px;
+      text-decoration: none; white-space: nowrap;
+      transition: background .18s;
+    }
+    .header-logout-btn:hover { background: rgba(194,65,12,.15) }
+
+    /* ══════════════════════════════════════
+       HERO
+    ══════════════════════════════════════ */
+    .db-hero {
+      background: linear-gradient(135deg, #c2410c 0%, #9a3412 100%);
+      border-radius: 20px; padding: 36px 36px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 24px; flex-wrap: wrap; overflow: hidden; position: relative;
+      animation: fadeUp .5s cubic-bezier(.16,1,.3,1) both;
+      box-shadow: 0 4px 24px rgba(194,65,12,.25);
+    }
+    .db-hero::before {
+      content:''; position:absolute; inset:0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      opacity:.6; pointer-events:none;
+    }
+    .db-hero-text { position:relative; z-index:1 }
+    .db-hero-greeting { font-size:11px; font-weight:600; color:rgba(255,255,255,.6); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px }
+    .db-hero-title { font-family:'Fraunces',serif; font-size:clamp(26px,5vw,38px); font-weight:900; color:#fff; letter-spacing:-.5px; line-height:1.1; margin-bottom:10px }
+    .db-hero-title em { font-style:italic; color:rgba(255,255,255,.75) }
+    .db-hero-sub { font-size:13px; color:rgba(255,255,255,.65); font-weight:300 }
+    .db-hero-cta { position:relative; z-index:1; display:flex; flex-direction:column; align-items:flex-end; gap:10px }
+    .btn-plan {
+      display:flex; align-items:center; gap:9px;
+      background:#fff; color:#c2410c; border:none; border-radius:10px;
+      font-family:'Fraunces',serif; font-size:15px; font-weight:700;
+      padding:14px 28px; cursor:pointer; white-space:nowrap;
+      box-shadow:0 4px 20px rgba(0,0,0,.2);
+      transition:transform .18s, box-shadow .18s; text-decoration:none;
+    }
+    .btn-plan:hover { transform:translateY(-2px); box-shadow:0 8px 32px rgba(0,0,0,.25) }
+    .hero-stat-row { display:flex; gap:20px; flex-wrap:wrap; position:relative; z-index:1 }
+    .hero-stat { text-align:center }
+    .hero-stat-val { font-family:'DM Mono',monospace; font-size:22px; font-weight:500; color:#fff }
+    .hero-stat-lbl { font-size:10px; color:rgba(255,255,255,.55); text-transform:uppercase; letter-spacing:.7px; margin-top:2px }
+
+    /* ══════════════════════════════════════
+       GRID — no overflow:hidden on widgets
+    ══════════════════════════════════════ */
+    .db-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px }
+    @media(max-width:680px) { .db-grid { grid-template-columns:1fr } }
+
+    .db-widget {
+      background: rgba(255,255,255,.85);
+      border: 1px solid rgba(26,23,20,.09);
+      border-radius: 16px;
+      box-shadow: 0 1px 4px rgba(26,23,20,.06), 0 4px 16px rgba(26,23,20,.04);
+      /* NO overflow:hidden — that was trapping dropdowns */
+      animation: fadeUp .5s cubic-bezier(.16,1,.3,1) both;
+    }
+    .db-widget.span2 { grid-column:span 2 }
+    @media(max-width:680px) { .db-widget.span2 { grid-column:span 1 } }
+
+    .widget-head {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 18px; border-bottom:1px solid rgba(26,23,20,.07);
+      background:rgba(253,248,243,.6); border-radius:16px 16px 0 0;
+    }
+    .widget-title { font-family:'Fraunces',serif; font-size:15px; font-weight:700; color:#1a1714; letter-spacing:-.2px }
+    .widget-sub { font-size:10px; color:#9c9690; font-style:italic }
+    .widget-body { padding:18px }
+
+    /* Weather */
+    .weather-main { display:flex; align-items:center; gap:16px; margin-bottom:14px }
+    .weather-icon-big { font-size:52px; line-height:1 }
+    .weather-temp { font-family:'Fraunces',serif; font-size:48px; font-weight:900; color:#1a1714; letter-spacing:-2px }
+    .weather-cond { font-size:14px; color:#6b6862; margin-top:2px }
+    .weather-meta { display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:#6b6862; font-family:'DM Mono',monospace }
+    .weather-meta span { display:flex; align-items:center; gap:4px }
+    .weather-source { font-size:9px; color:#b0ada8; margin-top:10px; font-style:italic }
+    .forecast-strip { display:flex; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid rgba(26,23,20,.07) }
+    .fc-day { flex:1; background:rgba(253,248,243,.8); border:1px solid rgba(26,23,20,.08); border-radius:10px; padding:10px 8px; text-align:center; transition:border-color .18s }
+    .fc-day:hover { border-color:#c2410c }
+    .fc-dow { font-size:9px; font-weight:700; color:#9c9690; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px }
+    .fc-icon { font-size:22px; display:block; margin-bottom:4px }
+    .fc-temp { font-size:11px; font-family:'DM Mono',monospace; color:#1a1714 }
+    .fc-rain { font-size:10px; color:#0d7377; margin-top:3px }
+
+    /* Traffic */
+    .traffic-bars { display:flex; flex-direction:column; gap:8px }
+    .tb-row { display:flex; align-items:center; gap:10px }
+    .tb-label { font-size:12px; font-weight:500; color:#3d3a37; min-width:90px }
+    .tb-bar { flex:1; height:6px; background:rgba(26,23,20,.08); border-radius:3px; overflow:hidden }
+    .tb-fill { height:100%; border-radius:3px; transition:width 1s cubic-bezier(.16,1,.3,1) }
+    .tb-fill.low   { background:#15803d }
+    .tb-fill.medium { background:#b45309 }
+    .tb-fill.high  { background:#be123c }
+    .tb-badge { font-size:9px; font-weight:600; padding:2px 8px; border-radius:20px; font-family:'DM Mono',monospace; text-transform:uppercase; min-width:50px; text-align:center }
+    .tb-badge.low    { background:rgba(21,128,61,.1);  color:#15803d }
+    .tb-badge.medium { background:rgba(180,83,9,.1);   color:#b45309 }
+    .tb-badge.high   { background:rgba(190,18,60,.1);  color:#be123c }
+    .traffic-summary { display:flex; gap:10px; margin-top:14px; padding-top:14px; border-top:1px solid rgba(26,23,20,.07) }
+    .ts-pill { flex:1; text-align:center; padding:10px 8px; background:rgba(253,248,243,.8); border:1px solid rgba(26,23,20,.08); border-radius:10px }
+    .ts-num { font-family:'Fraunces',serif; font-size:22px; font-weight:900; color:#1a1714 }
+    .ts-lbl { font-size:10px; color:#9c9690; text-transform:uppercase; letter-spacing:.5px }
+
+    /* Quick actions */
+    .quick-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+    .qa-btn { display:flex; align-items:center; gap:10px; background:rgba(253,248,243,.8); border:1px solid rgba(26,23,20,.09); border-radius:12px; padding:14px 16px; text-decoration:none; color:#1a1714; transition:all .2s; cursor:pointer }
+    .qa-btn:hover { border-color:#c2410c; background:#fff; transform:translateY(-2px); box-shadow:0 4px 16px rgba(26,23,20,.08) }
+    .qa-icon { font-size:24px }
+    .qa-label { font-size:13px; font-weight:600; color:#1a1714 }
+    .qa-desc  { font-size:11px; color:#9c9690; margin-top:1px }
+
+    /* Recent routes */
+    .route-list { display:flex; flex-direction:column; gap:8px }
+    .rl-item { display:flex; align-items:center; gap:12px; padding:12px 14px; background:rgba(253,248,243,.8); border:1px solid rgba(26,23,20,.08); border-radius:10px; color:#1a1714; transition:all .18s }
+    .rl-item:hover { border-color:#c2410c; background:#fff }
+    .rl-icons { display:flex; align-items:center; gap:4px; font-size:18px }
+    .rl-arrow { font-size:10px; color:#c2410c }
+    .rl-info { flex:1 }
+    .rl-route { font-size:13px; font-weight:600; color:#1a1714 }
+    .rl-meta  { font-size:11px; color:#9c9690; font-family:'DM Mono',monospace; margin-top:2px }
+    .rl-transport { font-size:9px; background:rgba(253,248,243,.9); border:1px solid rgba(26,23,20,.09); padding:2px 8px; border-radius:20px; font-weight:600; white-space:nowrap; color:#6b6862 }
+    .rl-rate-btn { font-size:9px; background:rgba(194,65,12,.08); border:1px solid rgba(194,65,12,.18); padding:3px 10px; border-radius:20px; font-weight:600; color:#c2410c; cursor:pointer; white-space:nowrap; transition:background .18s }
+    .rl-rate-btn:hover { background:rgba(194,65,12,.15) }
+    .rl-empty { text-align:center; padding:28px; color:#b0ada8; font-size:13px }
+    .rl-empty-icon { font-size:36px; display:block; margin-bottom:8px }
+
+    /* Spotlight */
+    .spotlight-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+    @media(max-width:400px) { .spotlight-grid { grid-template-columns:1fr } }
+    .sp-card { background:rgba(253,248,243,.8); border:1px solid rgba(26,23,20,.09); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:4px; text-decoration:none; color:#1a1714; transition:all .18s }
+    .sp-card:hover { border-color:#c2410c; transform:translateY(-2px); box-shadow:0 4px 16px rgba(26,23,20,.08) }
+    .sp-icon-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px }
+    .sp-icon   { font-size:26px }
+    .sp-rating { font-size:11px; color:#b45309; font-family:'DM Mono',monospace }
+    .sp-name   { font-size:13px; font-weight:700; color:#1a1714 }
+    .sp-cat    { font-size:10px; color:#9c9690; text-transform:uppercase; letter-spacing:.4px }
+    .sp-time   { font-size:10px; color:#0d7377; margin-top:4px }
+
+    /* ══════════════════════════════════════
+       RATING MODAL
+    ══════════════════════════════════════ */
+    .rating-modal-overlay {
+      display:none; position:fixed; inset:0;
+      background:rgba(26,23,20,.5);
+      backdrop-filter:blur(5px);
+      z-index:199999;
+      align-items:center; justify-content:center; padding:20px;
+    }
+    .rating-modal-overlay.open { display:flex }
+    .rating-modal {
+      background:#fff; border:1px solid rgba(26,23,20,.1);
+      border-radius:20px; padding:32px 28px; max-width:440px; width:100%;
+      box-shadow:0 24px 64px rgba(26,23,20,.18);
+      animation:modalPop .3s cubic-bezier(.16,1,.3,1) both;
+      position:relative;
+    }
+    @keyframes modalPop { from{opacity:0;transform:scale(.94) translateY(10px)} to{opacity:1;transform:none} }
+    .rating-modal-close { position:absolute; top:16px; right:16px; background:rgba(26,23,20,.06); border:1px solid rgba(26,23,20,.1); border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:13px; cursor:pointer; color:#6b6862; transition:all .18s }
+    .rating-modal-close:hover { background:rgba(26,23,20,.1); color:#1a1714 }
+    .rating-modal-title { font-family:'Fraunces',serif; font-size:22px; font-weight:900; color:#1a1714; letter-spacing:-.3px; margin-bottom:4px }
+    .rating-modal-route { font-size:12px; color:#9c9690; font-family:'DM Mono',monospace; margin-bottom:20px }
+    .stars-row { display:flex; gap:8px; justify-content:center; margin-bottom:20px }
+    .star-btn { font-size:36px; cursor:pointer; filter:grayscale(1) opacity(.3); transition:filter .15s, transform .15s; background:none; border:none; padding:0; line-height:1 }
+    .star-btn.lit { filter:none }
+    .rating-labels { display:flex; justify-content:space-between; font-size:10px; color:#b0ada8; margin-top:-12px; margin-bottom:18px; font-family:'DM Mono',monospace }
+    .rating-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px }
+    .rating-tag { font-size:11px; padding:4px 12px; border-radius:20px; border:1px solid rgba(26,23,20,.1); background:rgba(253,248,243,.9); color:#6b6862; cursor:pointer; transition:all .15s; font-weight:500 }
+    .rating-tag.selected { background:rgba(194,65,12,.1); border-color:rgba(194,65,12,.3); color:#c2410c }
+    .rating-feedback-label { font-size:12px; font-weight:600; color:#3d3a37; margin-bottom:8px; display:block }
+    .rating-textarea { width:100%; box-sizing:border-box; border:1px solid rgba(26,23,20,.12); border-radius:10px; background:rgba(253,248,243,.8); font-family:'DM Sans',sans-serif; font-size:13px; color:#1a1714; padding:12px 14px; resize:vertical; min-height:80px; transition:border-color .18s; outline:none }
+    .rating-textarea:focus { border-color:#c2410c }
+    .rating-submit-btn { width:100%; margin-top:16px; background:#c2410c; color:#fff; border:none; border-radius:10px; font-family:'Fraunces',serif; font-size:15px; font-weight:700; padding:14px; cursor:pointer; transition:opacity .18s, transform .18s }
+    .rating-submit-btn:hover { opacity:.9; transform:translateY(-1px) }
+    .rating-success { text-align:center; padding:16px 0 8px }
+    .rating-success-icon { font-size:48px; display:block; margin-bottom:12px }
+    .rating-success-title { font-family:'Fraunces',serif; font-size:20px; font-weight:900; color:#1a1714; margin-bottom:6px }
+    .rating-success-sub { font-size:13px; color:#6b6862 }
+
+    /* Notif badge */
+    .notif-badge { width:8px; height:8px; background:#be123c; border-radius:50%; position:absolute; top:6px; right:6px; border:1.5px solid #fdf8f3 }
+
+    /* Animations */
+    @keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:none} }
+    @keyframes blink  { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .db-widget:nth-child(1){animation-delay:.05s}
+    .db-widget:nth-child(2){animation-delay:.1s}
+    .db-widget:nth-child(3){animation-delay:.15s}
+    .db-widget:nth-child(4){animation-delay:.2s}
+    .db-widget:nth-child(5){animation-delay:.25s}
+  </style>
+</head>
+<body>
+
+<!-- ── PORTAL DROPDOWNS — live at body level, never clipped ── -->
+<div class="portal-dropdown" id="portalNotifPanel">
+  <div class="notif-panel-head">
+    <span>Notifications</span>
+    <button class="notif-clear" id="notifClear">Mark all read</button>
+  </div>
+  <div class="notif-item unread" id="ni1">
+    <span class="notif-dot"></span>
+    <div style="flex:1">
+      <div class="notif-text">Heavy traffic on Beach → Museum right now</div>
+      <div class="notif-time">2m ago</div>
+    </div>
+  </div>
+  <div class="notif-item unread" id="ni2">
+    <span class="notif-dot"></span>
+    <div style="flex:1">
+      <div class="notif-text">Rain forecast near Fort this evening</div>
+      <div class="notif-time">18m ago</div>
+    </div>
+  </div>
+  <div class="notif-item">
+    <span class="notif-dot read"></span>
+    <div style="flex:1">
+      <div class="notif-text">Your route to Temple was saved</div>
+      <div class="notif-time">1h ago</div>
+    </div>
+  </div>
+</div>
+
+<div class="portal-dropdown" id="portalUserDropdown">
+  <a class="ud-item" href="/dashboard"><span class="ud-icon">📊</span> Dashboard</a>
+  <a class="ud-item" href="/history"><span class="ud-icon">🕘</span> Route history</a>
+  <div style="height:1px;background:rgba(26,23,20,.07);margin:4px 0"></div>
+  <a class="ud-item danger" href="/logout"><span class="ud-icon">🚪</span> Log out</a>
+</div>
+
+<!-- ── RATING MODAL ── -->
+<div class="rating-modal-overlay" id="ratingModal">
+  <div class="rating-modal">
+    <button class="rating-modal-close" id="ratingModalClose">✕</button>
+    <div id="ratingFormView">
+      <div class="rating-modal-title">Rate your trip ⭐</div>
+      <div class="rating-modal-route" id="ratingRouteLabel">—</div>
+      <div class="stars-row" id="starsRow">
+        <button class="star-btn" data-val="1">⭐</button>
+        <button class="star-btn" data-val="2">⭐</button>
+        <button class="star-btn" data-val="3">⭐</button>
+        <button class="star-btn" data-val="4">⭐</button>
+        <button class="star-btn" data-val="5">⭐</button>
+      </div>
+      <div class="rating-labels"><span>Poor</span><span>Excellent</span></div>
+      <div class="rating-tags">
+        <span class="rating-tag" data-tag="Accurate route">✅ Accurate route</span>
+        <span class="rating-tag" data-tag="Good traffic info">🚦 Good traffic info</span>
+        <span class="rating-tag" data-tag="Scenic stops">🌄 Scenic stops</span>
+        <span class="rating-tag" data-tag="Cost was right">💰 Cost was right</span>
+        <span class="rating-tag" data-tag="Saved time">⏱️ Saved time</span>
+        <span class="rating-tag" data-tag="Wrong traffic data">⚠️ Wrong data</span>
+      </div>
+      <label class="rating-feedback-label">Comments <span style="color:#b0ada8;font-weight:400">(optional)</span></label>
+      <textarea class="rating-textarea" id="ratingComment" placeholder="What went well? What could be better?"></textarea>
+      <button class="rating-submit-btn" id="ratingSubmitBtn">Submit Feedback →</button>
+    </div>
+    <div id="ratingSuccessView" style="display:none">
+      <div class="rating-success">
+        <span class="rating-success-icon">🎉</span>
+        <div class="rating-success-title">Thanks for the feedback!</div>
+        <div class="rating-success-sub">Your rating helps RouteWise get smarter every day.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-wrapper">
+
+  <!-- HEADER -->
+  <header class="site-header" id="siteHeader">
+    <a class="header-brand" href="/dashboard">
+      <span class="logo-icon">🗺️</span>
+      <div class="logo-lockup">
+        <span class="logo-text">RouteWise</span>
+        <span class="logo-tag">AI-powered route optimisation</span>
+      </div>
+    </a>
+    <nav style="display:flex;gap:6px;align-items:center">
+      <a href="/dashboard" style="font-size:12px;font-weight:600;color:#c2410c;text-decoration:none;padding:6px 12px;background:rgba(194,65,12,.08);border-radius:20px">Dashboard</a>
+      <a href="/planner"   style="font-size:12px;font-weight:500;color:#6b6862;text-decoration:none;padding:6px 12px">Planner</a>
+      <a href="/history"   style="font-size:12px;font-weight:500;color:#6b6862;text-decoration:none;padding:6px 12px">History</a>
+    </nav>
+    <div class="header-actions" style="display:flex;align-items:center;gap:8px">
+
+      <!-- Notif trigger -->
+      <div style="position:relative">
+        <button id="notifBtn" style="background:none;border:none;font-size:18px;cursor:pointer;padding:6px;border-radius:8px;transition:background .18s;position:relative" aria-label="Notifications">
+          🔔
+          <span class="notif-badge" id="notifBadge"></span>
+        </button>
+      </div>
+
+      <!-- User menu trigger -->
+      <div id="userMenuBtn" role="button" tabindex="0" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:5px 10px 5px 5px;border-radius:24px;border:1px solid rgba(26,23,20,.1);background:rgba(253,248,243,.8);transition:background .18s" aria-expanded="false">
+        <div style="width:28px;height:28px;border-radius:50%;background:#c2410c;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:900;font-size:13px;color:#fff">{{ current_user.username[0]|upper }}</div>
+        <span style="font-size:12px;font-weight:600;color:#1a1714">{{ current_user.username }}</span>
+        <span style="font-size:10px;color:#9c9690">▾</span>
+      </div>
+
+      <!-- Always-visible logout -->
+      <a href="/logout" class="header-logout-btn">🚪 Log out</a>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <div class="db-hero">
+    <div class="db-hero-text">
+      <div class="db-hero-greeting">Good {{ 'morning' if now_hour < 12 else 'afternoon' if now_hour < 17 else 'evening' }}, {{ current_user.username }}</div>
+      <h1 class="db-hero-title">Where are you<br><em>headed today?</em></h1>
+      <p class="db-hero-sub">{{ stats.total_routes_all }} total routes planned · {{ stats.routes_today }} today</p>
+    </div>
+    <div class="db-hero-cta">
+      <a href="/planner" class="btn-plan">
+        Plan a Route
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <div class="hero-stat-row">
+        <div class="hero-stat"><div class="hero-stat-val">{{ stats.total_distance }} km</div><div class="hero-stat-lbl">Today's distance</div></div>
+        <div class="hero-stat"><div class="hero-stat-val">₹{{ stats.total_cost }}</div><div class="hero-stat-lbl">Today's spend</div></div>
+        <div class="hero-stat"><div class="hero-stat-val">{{ stats.routes_today }}</div><div class="hero-stat-lbl">Routes today</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIDGETS -->
+  <div class="db-grid">
+
+    <!-- Weather -->
+    <div class="db-widget">
+      <div class="widget-head">
+        <span class="widget-title">🌤️ Live Weather</span>
+        <span class="widget-sub">{{ city_weather.source }}</span>
+      </div>
+      <div class="widget-body">
+        <div class="weather-main">
+          <div class="weather-icon-big" id="wIcon">{{ city_weather.icon }}</div>
+          <div>
+            <div class="weather-temp" id="wTemp">{{ city_weather.temperature }}°</div>
+            <div class="weather-cond" id="wCond">{{ city_weather.condition }}</div>
+          </div>
+        </div>
+        <div class="weather-meta">
+          <span>💧 {{ city_weather.humidity }}% humidity</span>
+          <span>💨 {{ city_weather.wind_speed }} km/h</span>
+          <span>🌧️ {{ city_weather.rain_probability }}% rain chance</span>
+          {% if city_weather.visibility %}<span>👁️ {{ city_weather.visibility }} km vis</span>{% endif %}
+        </div>
+        {% if forecast %}
+        <div class="forecast-strip">
+          {% for f in forecast %}
+          <div class="fc-day">
+            <div class="fc-dow">{{ f.date[-5:] if f.date else '' }}</div>
+            <span class="fc-icon">{{ f.icon }}</span>
+            <div class="fc-temp">{{ f.temp_max }}° / {{ f.temp_min }}°</div>
+            <div class="fc-rain">{{ f.rain_prob }}%</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="weather-source" id="wSource">Last updated: {{ city_weather.source }} · auto-refreshes every 5 min</div>
+      </div>
+    </div>
+
+    <!-- Traffic -->
+    <div class="db-widget">
+      <div class="widget-head">
+        <span class="widget-title">🚦 Live Traffic</span>
+        <span style="font-size:9px;padding:3px 10px;border-radius:20px;background:rgba(190,18,60,.08);color:#be123c;border:1px solid rgba(190,18,60,.18);animation:blink 1.4s ease-in-out infinite;font-family:'DM Mono',monospace">LIVE</span>
+      </div>
+      <div class="widget-body">
+        <div class="traffic-bars">
+          {% set shown = namespace(count=0) %}
+          {% for key, level in traffic_snap.items() %}
+            {% if shown.count < 5 %}
+              {% set parts = key.split('_') %}
+              {% if parts|length == 2 %}
+              <div class="tb-row">
+                <span class="tb-label">{{ parts[0] }} → {{ parts[1] }}</span>
+                <div class="tb-bar"><div class="tb-fill {{ level }}" style="width:0" data-pct="{{ '85' if level=='high' else '50' if level=='medium' else '25' }}"></div></div>
+                <span class="tb-badge {{ level }}">{{ level }}</span>
+              </div>
+              {% set shown.count = shown.count + 1 %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        </div>
+        <div class="traffic-summary">
+          <div class="ts-pill"><div class="ts-num" style="color:#be123c">{{ high_count }}</div><div class="ts-lbl">High traffic</div></div>
+          <div class="ts-pill"><div class="ts-num" style="color:#b45309">{{ med_count }}</div><div class="ts-lbl">Medium</div></div>
+          <div class="ts-pill"><div class="ts-num" style="color:#15803d">{{ (traffic_snap|length) - high_count - med_count }}</div><div class="ts-lbl">Clear roads</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="db-widget">
+      <div class="widget-head"><span class="widget-title">⚡ Quick Actions</span></div>
+      <div class="widget-body">
+        <div class="quick-actions">
+          <a href="/planner" class="qa-btn"><span class="qa-icon">🗺️</span><div><div class="qa-label">Plan Route</div><div class="qa-desc">Find the best path</div></div></a>
+          <a href="/history" class="qa-btn"><span class="qa-icon">🕘</span><div><div class="qa-label">Route History</div><div class="qa-desc">View past trips</div></div></a>
+          <a href="/planner?optimize=cost" class="qa-btn"><span class="qa-icon">💰</span><div><div class="qa-label">Cheapest Route</div><div class="qa-desc">Minimise spending</div></div></a>
+          <a href="/planner?transport=Walking" class="qa-btn"><span class="qa-icon">🚶</span><div><div class="qa-label">Walk Route</div><div class="qa-desc">On foot only</div></div></a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Attractions -->
+    <div class="db-widget">
+      <div class="widget-head">
+        <span class="widget-title">📍 Explore Attractions</span>
+        <a href="/planner" style="font-size:11px;color:#c2410c;text-decoration:none;font-weight:600">Plan route →</a>
+      </div>
+      <div class="widget-body">
+        <div class="spotlight-grid">
+          {% for name, info in attraction_info.items() %}{% if loop.index <= 4 %}
+          <a href="/planner" class="sp-card">
+            <div class="sp-icon-row"><span class="sp-icon">{{ info.icon }}</span><span class="sp-rating">⭐ {{ info.rating }}</span></div>
+            <div class="sp-name">{{ name }}</div>
+            <div class="sp-cat">{{ info.category }}</div>
+            <div class="sp-time">🕐 {{ info.best_time }}</div>
+          </a>
+          {% endif %}{% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Routes -->
+    <div class="db-widget span2">
+      <div class="widget-head">
+        <span class="widget-title">🕘 Recent Routes</span>
+        <a href="/history" style="font-size:11px;color:#c2410c;text-decoration:none;font-weight:600">View all →</a>
+      </div>
+      <div class="widget-body">
+        {% if history %}
+        <div class="route-list">
+          {% for r in history %}
+          <div class="rl-item">
+            <div class="rl-icons">
+              <span>{{ attraction_info[r.start]['icon'] }}</span>
+              <span class="rl-arrow">→</span>
+              <span>{{ attraction_info[r.end]['icon'] }}</span>
+            </div>
+            <div class="rl-info">
+              <div class="rl-route">{{ r.start }} → {{ r.end }}</div>
+              <div class="rl-meta">📏 {{ r.distance }} km &nbsp;·&nbsp; 💰 ₹{{ r.cost }} &nbsp;·&nbsp; ⏱️ {{ r.time }} min &nbsp;·&nbsp; {{ r.searched_at.strftime('%d %b, %H:%M') }}</div>
+            </div>
+            <span class="rl-transport">{{ r.transport }}</span>
+            <button class="rl-rate-btn" data-route="{{ r.start }} → {{ r.end }}" data-transport="{{ r.transport }}" onclick="openRatingModal(this)">⭐ Rate</button>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="rl-empty">
+          <span class="rl-empty-icon">🗺️</span>
+          No routes yet. <a href="/planner" style="color:#c2410c;font-weight:600">Plan your first one →</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="site-footer">Powered by Dijkstra's Algorithm &amp; Open-Meteo &nbsp;·&nbsp; RouteWise © 2025</footer>
+</div>
+
+<script>
+/* ══════════════════════════════════════
+   PORTAL DROPDOWN SYSTEM
+   Dropdowns live at body level → never
+   clipped by any parent overflow/transform
+══════════════════════════════════════ */
+(function(){
+  const notifBtn       = document.getElementById('notifBtn');
+  const notifPanel     = document.getElementById('portalNotifPanel');
+  const notifBadge     = document.getElementById('notifBadge');
+  const notifClear     = document.getElementById('notifClear');
+  const userMenuBtn    = document.getElementById('userMenuBtn');
+  const userDropdown   = document.getElementById('portalUserDropdown');
+
+  function positionBelow(trigger, panel) {
+    const r = trigger.getBoundingClientRect();
+    const pw = panel.offsetWidth || 220;
+    let left = r.right - pw;
+    if (left < 8) left = 8;
+    panel.style.top  = (r.bottom + window.scrollY + 6) + 'px';
+    panel.style.left = left + 'px';
+  }
+
+  let openPanel = null;
+
+  function closeAll() {
+    if (openPanel) { openPanel.classList.remove('open'); openPanel = null; }
+    userMenuBtn.setAttribute('aria-expanded','false');
+  }
+
+  function togglePanel(trigger, panel) {
+    if (panel.classList.contains('open')) {
+      closeAll(); return;
+    }
+    closeAll();
+    positionBelow(trigger, panel);
+    panel.classList.add('open');
+    openPanel = panel;
+    if (panel === userDropdown) userMenuBtn.setAttribute('aria-expanded','true');
+  }
+
+  notifBtn.addEventListener('click', e => { e.stopPropagation(); togglePanel(notifBtn, notifPanel); });
+  userMenuBtn.addEventListener('click', e => { e.stopPropagation(); togglePanel(userMenuBtn, userDropdown); });
+  userMenuBtn.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); togglePanel(userMenuBtn, userDropdown); }});
+
+  document.addEventListener('click', closeAll);
+  notifPanel.addEventListener('click', e => e.stopPropagation());
+  userDropdown.addEventListener('click', e => e.stopPropagation());
+
+  // Reposition on scroll/resize
+  window.addEventListener('scroll', () => { if(openPanel) { if(openPanel===notifPanel) positionBelow(notifBtn,notifPanel); else positionBelow(userMenuBtn,userDropdown); }}, {passive:true});
+  window.addEventListener('resize', closeAll);
+
+  notifClear.addEventListener('click', () => {
+    document.querySelectorAll('#portalNotifPanel .notif-item').forEach(el => {
+      el.classList.remove('unread');
+      el.querySelector('.notif-dot')?.classList.add('read');
+    });
+    notifBadge.style.display = 'none';
+  });
+})();
+
+/* ══════════════════════════════════════
+   TRAFFIC BAR ANIMATION
+══════════════════════════════════════ */
+setTimeout(() => {
+  document.querySelectorAll('.tb-fill[data-pct]').forEach(el => {
+    el.style.width = el.dataset.pct + '%';
+  });
+}, 300);
+
+/* ══════════════════════════════════════
+   RATING MODAL
+══════════════════════════════════════ */
+let selectedStars = 0;
+
+function openRatingModal(btn) {
+  document.getElementById('ratingRouteLabel').textContent = btn.dataset.route + ' · ' + btn.dataset.transport;
+  selectedStars = 0;
+  document.getElementById('ratingComment').value = '';
+  document.getElementById('ratingFormView').style.display = 'block';
+  document.getElementById('ratingSuccessView').style.display = 'none';
+  document.querySelectorAll('.star-btn').forEach(s => s.classList.remove('lit'));
+  document.querySelectorAll('.rating-tag').forEach(t => t.classList.remove('selected'));
+  document.getElementById('ratingModal').classList.add('open');
+}
+
+document.getElementById('ratingModalClose').addEventListener('click', () => {
+  document.getElementById('ratingModal').classList.remove('open');
+});
+document.getElementById('ratingModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('ratingModal'))
+    document.getElementById('ratingModal').classList.remove('open');
+});
+
+// Stars
+document.querySelectorAll('.star-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectedStars = parseInt(btn.dataset.val);
+    document.querySelectorAll('.star-btn').forEach((s, i) => s.classList.toggle('lit', i < selectedStars));
+  });
+  btn.addEventListener('mouseenter', () => {
+    const hv = parseInt(btn.dataset.val);
+    document.querySelectorAll('.star-btn').forEach((s, i) => { s.style.filter = i < hv ? 'none' : 'grayscale(1) opacity(.3)'; });
+  });
+  btn.addEventListener('mouseleave', () => {
+    document.querySelectorAll('.star-btn').forEach((s, i) => { s.style.filter = i < selectedStars ? 'none' : 'grayscale(1) opacity(.3)'; });
+  });
+});
+
+// Tags
+document.querySelectorAll('.rating-tag').forEach(tag => {
+  tag.addEventListener('click', () => tag.classList.toggle('selected'));
+});
+
+// Submit
+document.getElementById('ratingSubmitBtn').addEventListener('click', () => {
+  if (selectedStars === 0) {
+    document.getElementById('starsRow').animate(
+      [{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'none'}],
+      {duration:300, iterations:2}
+    );
+    return;
+  }
+  document.getElementById('ratingFormView').style.display = 'none';
+  document.getElementById('ratingSuccessView').style.display = 'block';
+  setTimeout(() => document.getElementById('ratingModal').classList.remove('open'), 2200);
+});
+
+/* ══════════════════════════════════════
+   WEATHER AUTO-REFRESH
+══════════════════════════════════════ */
+function refreshWeather(lat, lng) {
+  fetch(`/api/weather?lat=${lat}&lng=${lng}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) return;
+      document.getElementById('wIcon').textContent = d.icon || '🌤️';
+      document.getElementById('wTemp').textContent = d.temperature + '°';
+      document.getElementById('wCond').textContent = d.condition;
+      document.getElementById('wSource').textContent = 'Last updated: ' + new Date().toLocaleTimeString() + ' · ' + d.source;
+    }).catch(() => {});
+}
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(pos => {
+    const {latitude: lat, longitude: lng} = pos.coords;
+    refreshWeather(lat, lng);
+    setInterval(() => refreshWeather(lat, lng), 5 * 60 * 1000);
+  }, () => {}, {timeout: 8000});
+}
+</script>
+</body>
+</html>
