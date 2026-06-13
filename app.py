@@ -192,9 +192,10 @@ def dashboard():
  
 # ── Root redirect ─────────────────────────────────────────
 @app.route("/")
-@login_required
 def home():
-    return redirect(url_for("dashboard"))
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard"))
+    return render_template("landing.html")
  
  
 # ── Route Planner ─────────────────────────────────────────
@@ -409,8 +410,8 @@ def api_notifications():
                                 "level": "medium", "unread": False})
     return jsonify(alerts[:5])
  
- 
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     app.run(debug=True)
+
