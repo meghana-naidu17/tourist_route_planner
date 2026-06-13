@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>RouteWise — AI-Powered Route Optimisation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── Tokens ── */
+    :root {
+      --paper:     #f5f0e8;
+      --paper-2:   #ede8dc;
+      --paper-3:   #e4ddd0;
+      --white:     #fdfaf5;
+      --ink:       #1a1714;
+      --ink-2:     #3d3830;
+      --ink-3:     #7a7368;
+      --ink-4:     #b0a99f;
+      --rust:      #c2410c;
+      --rust-2:    #ea580c;
+      --rust-glow: rgba(194,65,12,.14);
+      --teal:      #0d7377;
+      --amber:     #b45309;
+      --green:     #15803d;
+      --red:       #be123c;
+      --bdr:       rgba(26,23,20,.1);
+      --bdr-hi:    rgba(26,23,20,.18);
+      --r-sm:      10px;
+      --r-md:      16px;
+      --r-lg:      22px;
+      --r-xl:      28px;
+      --shadow:    0 2px 20px rgba(26,23,20,.08), 0 1px 0 rgba(255,255,255,.7) inset;
+      --shadow-lg: 0 8px 40px rgba(26,23,20,.12), 0 1px 0 rgba(255,255,255,.7) inset;
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box }
+    html { scroll-behavior:smooth }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #fdf8f3;
+      background-image:
+        radial-gradient(ellipse 80% 60% at 10% 0%, rgba(194,65,12,.07) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 50% at 90% 100%, rgba(13,115,119,.06) 0%, transparent 50%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(251,191,36,.04) 0%, transparent 60%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Ccircle cx='30' cy='30' r='1' fill='%23c2410c' opacity='.04'/%3E%3C/svg%3E");
+      color: var(--ink);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Grain */
+    body::after {
+      content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      opacity:.45;
+    }
+
+    /* Blobs */
+    .blob { position:fixed; border-radius:50%; filter:blur(90px); pointer-events:none; z-index:0 }
+    .blob-1 { width:560px;height:560px;background:rgba(234,88,12,.07);top:-180px;left:-120px;animation:orb 20s ease-in-out infinite alternate }
+    .blob-2 { width:480px;height:480px;background:rgba(13,115,119,.06);bottom:-140px;right:-100px;animation:orb 26s ease-in-out infinite alternate-reverse }
+    .blob-3 { width:360px;height:360px;background:rgba(180,83,9,.05);top:42%;left:58%;animation:orb 17s ease-in-out infinite alternate }
+    @keyframes orb { from{transform:scale(1) translate(0,0)} to{transform:scale(1.12) translate(22px,16px)} }
+
+    /* Wrapper */
+    .page { position:relative; z-index:1; max-width:1000px; margin:0 auto; padding:0 22px 80px }
+
+    /* ── NAV ── */
+    nav {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:18px 0; gap:16px;
+      animation: slideDown .55s cubic-bezier(.16,1,.3,1) both;
+    }
+    @keyframes slideDown { from{opacity:0;transform:translateY(-16px)} to{opacity:1;transform:none} }
+    .nav-brand { display:flex; align-items:center; gap:11px; text-decoration:none }
+    .nav-logo   { font-size:28px; animation:spin 16s linear infinite }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .nav-name   { font-family:'Fraunces',serif; font-weight:900; font-size:22px; color:var(--rust); letter-spacing:-.4px }
+    .nav-tag    { font-size:10px; color:var(--ink-3); font-style:italic; margin-top:1px }
+    .nav-btns   { display:flex; gap:10px; align-items:center }
+    .btn-ghost  {
+      padding:9px 20px; background:transparent; border:1.5px solid var(--bdr-hi);
+      border-radius:var(--r-sm); font-family:'DM Sans',sans-serif; font-size:13px;
+      font-weight:600; color:var(--ink-2); cursor:pointer; text-decoration:none;
+      transition:all .2s;
+    }
+    .btn-ghost:hover { border-color:var(--rust); color:var(--rust); background:var(--rust-glow) }
+    .btn-cta {
+      padding:9px 22px; background:var(--rust); border:none; border-radius:var(--r-sm);
+      font-family:'Fraunces',serif; font-size:14px; font-weight:700; color:#fff;
+      cursor:pointer; text-decoration:none; letter-spacing:-.1px;
+      box-shadow:0 4px 14px rgba(194,65,12,.28); transition:all .2s;
+    }
+    .btn-cta:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(194,65,12,.38) }
+
+    /* ── HERO ── */
+    .hero {
+      padding:60px 0 48px;
+      display:flex; flex-direction:column; align-items:center; text-align:center; gap:24px;
+      animation:fadeUp .6s cubic-bezier(.16,1,.3,1) .1s both;
+    }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
+
+    .hero-eyebrow {
+      display:inline-flex; align-items:center; gap:7px;
+      background:rgba(194,65,12,.08); border:1px solid rgba(194,65,12,.18);
+      border-radius:30px; padding:5px 14px;
+      font-size:11px; font-weight:600; color:var(--rust);
+      text-transform:uppercase; letter-spacing:.8px;
+    }
+    .eyebrow-dot { width:6px;height:6px;border-radius:50%;background:var(--rust);animation:blink 1.4s ease-in-out infinite }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    .hero h1 {
+      font-family:'Fraunces',serif; font-size:clamp(36px,7vw,64px);
+      font-weight:900; line-height:1.04; color:var(--ink); letter-spacing:-.8px;
+      max-width:720px;
+    }
+    .hero h1 em { font-style:italic; color:var(--rust) }
+    .hero-sub {
+      font-size:clamp(14px,2vw,17px); color:var(--ink-3); font-weight:300;
+      line-height:1.65; max-width:560px;
+    }
+
+    .hero-actions { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:8px }
+    .btn-hero {
+      display:flex; align-items:center; gap:9px;
+      padding:15px 30px; background:var(--rust); border:none;
+      border-radius:var(--r-sm); font-family:'Fraunces',serif;
+      font-size:16px; font-weight:700; color:#fff; cursor:pointer;
+      text-decoration:none; letter-spacing:-.2px; position:relative; overflow:hidden;
+      box-shadow:0 6px 24px rgba(194,65,12,.32); transition:all .22s;
+    }
+    .btn-hero::before {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);
+      transform:translateX(-100%); transition:transform .5s;
+    }
+    .btn-hero:hover::before { transform:translateX(100%) }
+    .btn-hero:hover { transform:translateY(-2px); box-shadow:0 10px 32px rgba(194,65,12,.4) }
+    .btn-hero svg { width:18px;height:18px;transition:transform .2s }
+    .btn-hero:hover svg { transform:translateX(4px) }
+    .btn-secondary {
+      display:flex; align-items:center; gap:8px;
+      padding:15px 24px; background:var(--white);
+      border:1.5px solid var(--bdr-hi); border-radius:var(--r-sm);
+      font-family:'DM Sans',sans-serif; font-size:14px; font-weight:600;
+      color:var(--ink-2); cursor:pointer; text-decoration:none;
+      transition:all .2s; box-shadow:var(--shadow);
+    }
+    .btn-secondary:hover { border-color:var(--rust); color:var(--rust); transform:translateY(-2px) }
+
+    /* Trust bar */
+    .trust-bar {
+      display:flex; gap:24px; flex-wrap:wrap; justify-content:center;
+      font-size:12px; color:var(--ink-4); font-style:italic; margin-top:4px;
+    }
+    .trust-item { display:flex; align-items:center; gap:5px }
+    .trust-item span:first-child { font-style:normal }
+
+    /* ── ROUTE DEMO ── */
+    .demo-card {
+      background:var(--white); border:1px solid var(--bdr); border-radius:var(--r-xl);
+      box-shadow:var(--shadow-lg); overflow:hidden;
+      animation:fadeUp .6s cubic-bezier(.16,1,.3,1) .2s both;
+      margin:0 0 12px;
+    }
+    .demo-header {
+      background:linear-gradient(135deg, #c2410c 0%, #9a3412 100%);
+      padding:22px 28px 20px; position:relative; overflow:hidden;
+    }
+    .demo-header::before {
+      content:''; position:absolute; inset:0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+      pointer-events:none;
+    }
+    .demo-eyebrow { font-size:10px; font-weight:700; color:rgba(255,255,255,.6); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; position:relative }
+    .demo-route   { font-family:'Fraunces',serif; font-size:clamp(20px,4vw,28px); font-weight:900; color:#fff; letter-spacing:-.4px; position:relative }
+    .demo-route em { font-style:italic; color:rgba(255,255,255,.7) }
+    .demo-stats {
+      display:flex; gap:22px; flex-wrap:wrap; margin-top:16px; position:relative;
+    }
+    .ds { text-align:left }
+    .ds-val { font-family:'DM Mono',monospace; font-size:20px; font-weight:500; color:#fff }
+    .ds-lbl { font-size:10px; color:rgba(255,255,255,.55); text-transform:uppercase; letter-spacing:.7px; margin-top:1px }
+
+    .demo-body { padding:0 }
+    .demo-stop {
+      display:flex; align-items:flex-start; gap:14px;
+      padding:16px 24px; border-bottom:1px solid var(--bdr);
+      opacity:0; transform:translateX(-16px);
+    }
+    .demo-stop.in { animation:stopIn .45s cubic-bezier(.16,1,.3,1) forwards }
+    @keyframes stopIn { to{opacity:1;transform:none} }
+    .ds-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-top:5px }
+    .ds-dot.start  { background:var(--teal); box-shadow:0 0 0 3px rgba(13,115,119,.18) }
+    .ds-dot.end    { background:var(--rust); box-shadow:0 0 0 3px var(--rust-glow) }
+    .ds-dot.mid    { background:var(--ink-4) }
+    .ds-icon { font-size:22px; flex-shrink:0 }
+    .ds-info { flex:1 }
+    .ds-name { font-family:'Fraunces',serif; font-weight:700; font-size:15px; color:var(--ink) }
+    .ds-cat  { font-size:10px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.5px; background:var(--paper-2); border:1px solid var(--bdr); border-radius:20px; padding:2px 8px; margin-left:7px }
+    .ds-meta { font-size:11px; color:var(--ink-3); margin-top:3px }
+
+    .demo-road {
+      display:flex; align-items:center; gap:12px;
+      padding:10px 24px 10px 48px; font-size:11px; font-family:'DM Mono',monospace;
+      opacity:0;
+    }
+    .demo-road.in { animation:fadeUp .3s ease forwards }
+    .dr-line { flex:1; height:1px; background:var(--bdr) }
+    .dr-badge {
+      padding:3px 10px; border-radius:20px; font-size:9px; font-weight:700;
+      text-transform:uppercase; letter-spacing:.5px;
+    }
+    .dr-badge.low    { background:rgba(21,128,61,.1); color:var(--green); border:1px solid rgba(21,128,61,.2) }
+    .dr-badge.medium { background:rgba(180,83,9,.1);  color:var(--amber); border:1px solid rgba(180,83,9,.2) }
+    .dr-badge.high   { background:rgba(190,18,60,.1); color:var(--red);   border:1px solid rgba(190,18,60,.2); animation:blink 1.4s ease-in-out infinite }
+    .dr-dist { color:var(--ink-2) }
+    .dr-time { color:var(--ink-2) }
+
+    .demo-footer {
+      display:flex; gap:10px; align-items:center; padding:14px 24px;
+      background:var(--paper); border-top:1px solid var(--bdr);
+    }
+    .demo-footer a {
+      display:inline-flex; align-items:center; gap:7px;
+      background:var(--rust); color:#fff; text-decoration:none;
+      padding:10px 20px; border-radius:var(--r-sm);
+      font-family:'Fraunces',serif; font-size:13px; font-weight:700;
+      transition:all .2s; box-shadow:0 3px 12px rgba(194,65,12,.25);
+    }
+    .demo-footer a:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(194,65,12,.35) }
+    .demo-footer-note { font-size:11px; color:var(--ink-4); font-style:italic }
+
+    /* ── FEATURES ── */
+    .section-eyebrow {
+      font-size:10px; font-weight:700; color:var(--rust); text-transform:uppercase;
+      letter-spacing:1px; margin-bottom:10px;
+    }
+    .section-title {
+      font-family:'Fraunces',serif; font-size:clamp(26px,5vw,40px);
+      font-weight:900; color:var(--ink); letter-spacing:-.5px; line-height:1.1;
+      margin-bottom:14px;
+    }
+    .section-title em { font-style:italic; color:var(--rust) }
+    .section-sub { font-size:14px; color:var(--ink-3); max-width:520px; line-height:1.65 }
+
+    .features-grid {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:14px;
+      margin-top:36px;
+    }
+    @media(max-width:640px) { .features-grid { grid-template-columns:1fr } }
+    @media(max-width:860px) { .features-grid { grid-template-columns:1fr 1fr } }
+
+    .feat-card {
+      background:var(--white); border:1px solid var(--bdr); border-radius:var(--r-lg);
+      padding:24px 20px; box-shadow:var(--shadow);
+      opacity:0; transform:translateY(14px);
+      transition:border-color .2s, box-shadow .2s, transform .2s;
+    }
+    .feat-card.in { animation:fadeUp .5s cubic-bezier(.16,1,.3,1) forwards }
+    .feat-card:hover { border-color:rgba(194,65,12,.25); box-shadow:var(--shadow-lg); transform:translateY(-3px) !important }
+    .feat-icon { font-size:28px; margin-bottom:14px }
+    .feat-title { font-family:'Fraunces',serif; font-weight:700; font-size:16px; color:var(--ink); margin-bottom:7px; letter-spacing:-.2px }
+    .feat-desc  { font-size:12px; color:var(--ink-3); line-height:1.6 }
+    .feat-tag   {
+      display:inline-block; margin-top:10px;
+      font-size:9px; font-weight:600; color:var(--rust); text-transform:uppercase; letter-spacing:.6px;
+      background:rgba(194,65,12,.07); border:1px solid rgba(194,65,12,.16);
+      border-radius:20px; padding:3px 9px;
+    }
+
+    /* ── HOW IT WORKS ── */
+    .how-section {
+      background:var(--white); border:1px solid var(--bdr);
+      border-radius:var(--r-xl); padding:48px 40px;
+      box-shadow:var(--shadow-lg); margin:60px 0;
+    }
+    @media(max-width:560px) { .how-section { padding:30px 22px } }
+    .steps { display:flex; flex-direction:column; gap:0; margin-top:36px }
+    .step {
+      display:flex; gap:22px; align-items:flex-start; position:relative;
+      padding-bottom:32px; opacity:0; transform:translateX(-16px);
+    }
+    .step:last-child { padding-bottom:0 }
+    .step.in { animation:stopIn .5s cubic-bezier(.16,1,.3,1) forwards }
+    .step-track {
+      display:flex; flex-direction:column; align-items:center; flex-shrink:0; gap:0;
+    }
+    .step-num {
+      width:36px; height:36px; border-radius:50%;
+      background:var(--rust); color:#fff;
+      font-family:'Fraunces',serif; font-weight:900; font-size:15px;
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 0 0 4px var(--rust-glow);
+    }
+    .step-line {
+      width:1px; flex:1; min-height:32px;
+      background:linear-gradient(to bottom, rgba(194,65,12,.3), rgba(194,65,12,.05));
+      margin-top:6px;
+    }
+    .step:last-child .step-line { display:none }
+    .step-body { padding-top:6px }
+    .step-title { font-family:'Fraunces',serif; font-weight:700; font-size:17px; color:var(--ink); margin-bottom:5px; letter-spacing:-.2px }
+    .step-desc  { font-size:13px; color:var(--ink-3); line-height:1.65 }
+
+    /* ── ATTRACTIONS MARQUEE ── */
+    .marquee-section { overflow:hidden; padding:8px 0; margin:24px 0 }
+    .marquee-track {
+      display:flex; gap:12px; width:max-content;
+      animation:marquee 28s linear infinite;
+    }
+    @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+    .marquee-chip {
+      display:flex; align-items:center; gap:8px;
+      background:var(--white); border:1px solid var(--bdr); border-radius:30px;
+      padding:8px 16px; white-space:nowrap; flex-shrink:0;
+      font-size:12px; font-weight:500; color:var(--ink-2);
+      box-shadow:var(--shadow);
+    }
+    .mc-icon { font-size:16px }
+    .mc-cat  { font-size:9px; color:var(--ink-4); font-family:'DM Mono',monospace }
+
+    /* ── STATS SECTION ── */
+    .stats-section {
+      display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
+      margin:60px 0;
+    }
+    @media(max-width:560px) { .stats-section { grid-template-columns:1fr 1fr } }
+    .stat-box {
+      background:var(--white); border:1px solid var(--bdr); border-radius:var(--r-lg);
+      padding:22px 18px; text-align:center; box-shadow:var(--shadow);
+      opacity:0; transform:translateY(12px);
+    }
+    .stat-box.in { animation:fadeUp .5s cubic-bezier(.16,1,.3,1) forwards }
+    .stat-box.accent { background:var(--rust); border-color:var(--rust) }
+    .stat-box.accent .stat-v,.stat-box.accent .stat-l { color:#fff }
+    .stat-e { font-size:22px; margin-bottom:8px }
+    .stat-v { font-family:'Fraunces',serif; font-size:28px; font-weight:900; color:var(--ink); letter-spacing:-.6px }
+    .stat-l { font-size:10px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.8px; margin-top:3px }
+
+    /* ── CTA BANNER ── */
+    .cta-banner {
+      background:linear-gradient(135deg, #c2410c 0%, #9a3412 100%);
+      border-radius:var(--r-xl); padding:52px 44px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:28px; flex-wrap:wrap; position:relative; overflow:hidden;
+      box-shadow:0 8px 32px rgba(194,65,12,.28);
+      margin:60px 0 40px;
+    }
+    .cta-banner::before {
+      content:''; position:absolute; inset:0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+      pointer-events:none;
+    }
+    .cta-text { position:relative; z-index:1 }
+    .cta-label { font-size:11px; font-weight:700; color:rgba(255,255,255,.6); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px }
+    .cta-title { font-family:'Fraunces',serif; font-size:clamp(24px,4vw,36px); font-weight:900; color:#fff; letter-spacing:-.5px; line-height:1.12; margin-bottom:10px }
+    .cta-title em { font-style:italic; color:rgba(255,255,255,.75) }
+    .cta-note  { font-size:13px; color:rgba(255,255,255,.6) }
+    .cta-actions { position:relative; z-index:1; display:flex; gap:12px; flex-wrap:wrap }
+    .btn-white {
+      display:flex; align-items:center; gap:9px;
+      background:#fff; color:var(--rust); border:none; border-radius:var(--r-sm);
+      font-family:'Fraunces',serif; font-size:15px; font-weight:700;
+      padding:14px 28px; cursor:pointer; text-decoration:none; white-space:nowrap;
+      box-shadow:0 4px 18px rgba(0,0,0,.18);
+      transition:transform .2s, box-shadow .2s;
+    }
+    .btn-white:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(0,0,0,.24) }
+    .btn-outline-white {
+      display:flex; align-items:center; gap:8px;
+      background:transparent; color:#fff;
+      border:1.5px solid rgba(255,255,255,.4); border-radius:var(--r-sm);
+      font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600;
+      padding:14px 22px; cursor:pointer; text-decoration:none;
+      transition:all .2s;
+    }
+    .btn-outline-white:hover { border-color:rgba(255,255,255,.8); background:rgba(255,255,255,.1) }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align:center; font-size:11px; color:var(--ink-4);
+      padding:20px 0; border-top:1px solid var(--bdr);
+      display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap;
+    }
+    footer a { color:var(--rust); text-decoration:none }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      display:none; position:fixed; inset:0;
+      background:rgba(26,23,20,.5); backdrop-filter:blur(6px);
+      z-index:9999; align-items:center; justify-content:center; padding:20px;
+    }
+    .modal-overlay.open { display:flex; animation:fadeIn .25s ease }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    .modal {
+      background:var(--white); border:1px solid var(--bdr);
+      border-radius:var(--r-xl); padding:40px 36px; max-width:420px; width:100%;
+      box-shadow:0 24px 64px rgba(26,23,20,.18);
+      animation:modalPop .3s cubic-bezier(.16,1,.3,1) both; position:relative;
+    }
+    @keyframes modalPop { from{opacity:0;transform:scale(.94) translateY(10px)} to{opacity:1;transform:none} }
+    .modal-close {
+      position:absolute; top:16px; right:16px;
+      background:rgba(26,23,20,.06); border:1px solid rgba(26,23,20,.1);
+      border-radius:50%; width:30px; height:30px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:14px; cursor:pointer; color:var(--ink-3); transition:all .18s;
+    }
+    .modal-close:hover { background:rgba(26,23,20,.12); color:var(--ink) }
+    .modal-title { font-family:'Fraunces',serif; font-size:24px; font-weight:900; color:var(--ink); margin-bottom:6px; letter-spacing:-.3px }
+    .modal-sub   { font-size:13px; color:var(--ink-3); margin-bottom:26px }
+    .modal-tabs  { display:flex; gap:0; margin-bottom:24px; border-bottom:2px solid var(--bdr) }
+    .modal-tab {
+      flex:1; padding:10px; text-align:center; font-size:13px; font-weight:600;
+      color:var(--ink-3); cursor:pointer; border-bottom:2px solid transparent;
+      margin-bottom:-2px; transition:all .2s;
+    }
+    .modal-tab.active { color:var(--rust); border-bottom-color:var(--rust) }
+    .form-group { display:flex; flex-direction:column; gap:8px; margin-bottom:14px }
+    .form-group label { font-size:10px; font-weight:700; color:var(--ink-3); text-transform:uppercase; letter-spacing:.7px }
+    .form-group input {
+      width:100%; padding:11px 13px;
+      border:1px solid var(--bdr-hi); border-radius:var(--r-sm);
+      font-family:'DM Sans',sans-serif; font-size:14px; color:var(--ink);
+      background:var(--paper); outline:none;
+      transition:border-color .2s, box-shadow .2s;
+    }
+    .form-group input:focus { border-color:var(--rust); box-shadow:0 0 0 3px var(--rust-glow) }
+    .form-group input::placeholder { color:var(--ink-4) }
+    .auth-submit {
+      width:100%; margin-top:6px; padding:14px;
+      background:var(--rust); color:#fff; border:none;
+      border-radius:var(--r-sm); font-family:'Fraunces',serif;
+      font-size:15px; font-weight:700; cursor:pointer;
+      box-shadow:0 4px 16px rgba(194,65,12,.28); letter-spacing:-.1px;
+      transition:transform .18s, box-shadow .18s;
+    }
+    .auth-submit:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(194,65,12,.38) }
+    .alert-error {
+      background:rgba(190,18,60,.06); color:#be123c;
+      border:1px solid rgba(190,18,60,.2); border-left:3px solid var(--red);
+      border-radius:var(--r-sm); padding:10px 14px; font-size:13px;
+      margin-bottom:14px;
+    }
+    .pw-bar { height:3px; border-radius:2px; margin-top:5px; background:var(--bdr); transition:all .3s }
+
+    @media(max-width:560px) {
+      .how-section { padding:28px 18px }
+      .cta-banner  { padding:32px 22px; flex-direction:column }
+      .hero-actions { flex-direction:column; align-items:center }
+      .btn-hero,.btn-secondary { width:100%; justify-content:center }
+    }
+  </style>
+</head>
+<body>
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<!-- AUTH MODAL -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal">
+    <button class="modal-close" id="modalClose">✕</button>
+    <div class="modal-title">Welcome to RouteWise 🗺️</div>
+    <div class="modal-sub">Sign in or create a free account to start planning.</div>
+    <div class="modal-tabs">
+      <div class="modal-tab active" data-tab="login">Log In</div>
+      <div class="modal-tab" data-tab="signup">Sign Up</div>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div id="tabLogin">
+      <form method="POST" action="/login" style="display:flex;flex-direction:column;gap:0">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" name="email" placeholder="you@example.com" required/>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" placeholder="Your password" required/>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <input type="checkbox" name="remember" id="rememberModal" style="accent-color:var(--rust);width:14px;height:14px;cursor:pointer"/>
+          <label for="rememberModal" style="font-size:12px;color:var(--ink-3);cursor:pointer">Remember me for 30 days</label>
+        </div>
+        <button type="submit" class="auth-submit">Log In →</button>
+      </form>
+      <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--ink-3)">
+        Don't have an account? <a href="#" onclick="switchTab('signup')" style="color:var(--rust);font-weight:600;text-decoration:none">Sign up free →</a>
+      </p>
+    </div>
+
+    <!-- SIGNUP FORM -->
+    <div id="tabSignup" style="display:none">
+      <form method="POST" action="/signup" autocomplete="off" style="display:flex;flex-direction:column;gap:0">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" name="username" placeholder="e.g. traveller_raj" required/>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" name="email" placeholder="you@example.com" required/>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" id="pwSignup" placeholder="Min 6 characters" required/>
+          <div class="pw-bar" id="pwBar"></div>
+        </div>
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input type="password" name="confirm" placeholder="Repeat password" required/>
+        </div>
+        <button type="submit" class="auth-submit">Create Account →</button>
+      </form>
+      <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--ink-3)">
+        Already have an account? <a href="#" onclick="switchTab('login')" style="color:var(--rust);font-weight:600;text-decoration:none">Log in →</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- NAV -->
+  <nav>
+    <a class="nav-brand" href="#">
+      <span class="nav-logo">🗺️</span>
+      <div>
+        <div class="nav-name">RouteWise</div>
+        <div class="nav-tag">AI-powered route optimisation</div>
+      </div>
+    </a>
+    <div class="nav-btns">
+      <a class="btn-ghost" href="#" onclick="openModal('login')">Log In</a>
+      <a class="btn-cta"   href="#" onclick="openModal('signup')">Get Started Free</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-eyebrow">
+      <span class="eyebrow-dot"></span>
+      Live traffic · Real-time weather · AI routing
+    </div>
+    <h1>Find the <em>smartest route</em><br>through any city</h1>
+    <p class="hero-sub">
+      RouteWise combines Dijkstra's algorithm with live traffic, real weather data, and Bayesian prediction to get you anywhere faster, cheaper, and with better stops along the way.
+    </p>
+    <div class="hero-actions">
+      <a class="btn-hero" href="#" onclick="openModal('signup')">
+        Start Exploring Free
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <a class="btn-secondary" href="#how">
+        <span>How it works</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      </a>
+    </div>
+    <div class="trust-bar">
+      <span class="trust-item"><span>🔒</span> No credit card required</span>
+      <span class="trust-item"><span>⚡</span> Plans ready in seconds</span>
+      <span class="trust-item"><span>🌤️</span> Live Open-Meteo weather</span>
+      <span class="trust-item"><span>🔴</span> Real-time traffic data</span>
+    </div>
+  </section>
+
+  <!-- DEMO ROUTE CARD -->
+  <div class="demo-card">
+    <div class="demo-header">
+      <div class="demo-eyebrow">Sample Route · Live Preview</div>
+      <div class="demo-route">🏖️ Beach <em>→</em> 🛕 Temple <em>→</em> 🏯 Fort</div>
+      <div class="demo-stats">
+        <div class="ds"><div class="ds-val">14 km</div><div class="ds-lbl">Distance</div></div>
+        <div class="ds"><div class="ds-val">₹290</div><div class="ds-lbl">Total cost</div></div>
+        <div class="ds"><div class="ds-val">32 min</div><div class="ds-lbl">Travel time</div></div>
+        <div class="ds"><div class="ds-val">🚗 Car</div><div class="ds-lbl">Mode</div></div>
+      </div>
+    </div>
+    <div class="demo-body" id="demoBody">
+      <div class="demo-stop" data-delay="0">
+        <div class="ds-dot start"></div>
+        <div class="ds-icon">🏖️</div>
+        <div class="ds-info">
+          <div><span class="ds-name">Beach</span><span class="ds-cat">Nature</span></div>
+          <div class="ds-meta">India's longest urban beach · ⭐ 4.5 · 🕐 Best: early morning or sunset</div>
+        </div>
+      </div>
+      <div class="demo-road" data-delay="120">
+        <span class="dr-dist">5 km</span>
+        <span class="dr-line"></span>
+        <span>🚗</span>
+        <span class="dr-line"></span>
+        <span class="dr-dist">15 min</span>
+        <span class="dr-badge medium">🟡 Medium traffic</span>
+      </div>
+      <div class="demo-stop" data-delay="220">
+        <div class="ds-dot mid"></div>
+        <div class="ds-icon">🛕</div>
+        <div class="ds-info">
+          <div><span class="ds-name">Temple</span><span class="ds-cat">Heritage</span></div>
+          <div class="ds-meta">1200-year-old Dravidian temple · ⭐ 4.8 · 🌸 Via Flower Market</div>
+        </div>
+      </div>
+      <div class="demo-road" data-delay="340">
+        <span class="dr-dist">6 km</span>
+        <span class="dr-line"></span>
+        <span>🚗</span>
+        <span class="dr-line"></span>
+        <span class="dr-dist">17 min</span>
+        <span class="dr-badge low">🟢 Low traffic</span>
+      </div>
+      <div class="demo-stop" data-delay="440">
+        <div class="ds-dot end"></div>
+        <div class="ds-icon">🏯</div>
+        <div class="ds-info">
+          <div><span class="ds-name">Fort</span><span class="ds-cat">Heritage</span></div>
+          <div class="ds-meta">16th-century fort with sea views · ⭐ 4.6 · 🕐 Best: evening light show</div>
+        </div>
+      </div>
+    </div>
+    <div class="demo-footer">
+      <a href="#" onclick="openModal('signup')">
+        Plan your own route
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <span class="demo-footer-note">Free account · takes 30 seconds</span>
+    </div>
+  </div>
+
+  <!-- MARQUEE: ATTRACTIONS -->
+  <div class="marquee-section">
+    <div class="marquee-track" id="marquee"></div>
+  </div>
+
+  <!-- FEATURES -->
+  <section style="padding:48px 0 0">
+    <div class="section-eyebrow">Why RouteWise</div>
+    <h2 class="section-title">Everything you need to <em>move smarter</em></h2>
+    <p class="section-sub">Built for travellers and explorers who want more than just directions — they want the full picture.</p>
+
+    <div class="features-grid">
+      <div class="feat-card" data-delay="0">
+        <div class="feat-icon">🧠</div>
+        <div class="feat-title">Dijkstra's Algorithm</div>
+        <div class="feat-desc">Provably optimal pathfinding across the city's attraction network. Optimise for shortest distance, lowest cost, or fastest time — all three at once.</div>
+        <span class="feat-tag">AI-Powered</span>
+      </div>
+      <div class="feat-card" data-delay="80">
+        <div class="feat-icon">🚦</div>
+        <div class="feat-title">Live Traffic Prediction</div>
+        <div class="feat-desc">Bayesian models combined with Hidden Markov traffic transitions predict congestion in real time and flag high-traffic roads with bypass alternatives.</div>
+        <span class="feat-tag">Real-Time</span>
+      </div>
+      <div class="feat-card" data-delay="160">
+        <div class="feat-icon">🌤️</div>
+        <div class="feat-title">Live Weather on Route</div>
+        <div class="feat-desc">Open-Meteo live data shows temperature, rain probability, humidity and wind speed for every segment of your route. No guessing about the skies.</div>
+        <span class="feat-tag">Open-Meteo API</span>
+      </div>
+      <div class="feat-card" data-delay="240">
+        <div class="feat-icon">🗺️</div>
+        <div class="feat-title">Interactive Map</div>
+        <div class="feat-desc">Leaflet-powered live map with colour-coded traffic lines, scenic waypoint markers, and GPS dot showing exactly where you are right now.</div>
+        <span class="feat-tag">GPS Tracking</span>
+      </div>
+      <div class="feat-card" data-delay="320">
+        <div class="feat-icon">💰</div>
+        <div class="feat-title">Full Cost Breakdown</div>
+        <div class="feat-desc">See exactly where every rupee goes — road charges, fuel, transport surcharges — with animated bar charts making your spend crystal clear.</div>
+        <span class="feat-tag">Budget-Smart</span>
+      </div>
+      <div class="feat-card" data-delay="400">
+        <div class="feat-icon">🌄</div>
+        <div class="feat-title">Scenic Stops & Bypasses</div>
+        <div class="feat-desc">Discover hidden waypoints like flower markets and lighthouses along your route. When traffic is high, get bypass road options that actually save time.</div>
+        <span class="feat-tag">Explorer Mode</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <div class="stats-section">
+    <div class="stat-box" data-delay="0">
+      <div class="stat-e">🗺️</div>
+      <div class="stat-v">8</div>
+      <div class="stat-l">Attractions</div>
+    </div>
+    <div class="stat-box accent" data-delay="80">
+      <div class="stat-e">🔀</div>
+      <div class="stat-v">3</div>
+      <div class="stat-l">Route Options</div>
+    </div>
+    <div class="stat-box" data-delay="160">
+      <div class="stat-e">🚦</div>
+      <div class="stat-v">Live</div>
+      <div class="stat-l">Traffic Data</div>
+    </div>
+    <div class="stat-box" data-delay="240">
+      <div class="stat-e">🌤️</div>
+      <div class="stat-v">Free</div>
+      <div class="stat-l">No API Key</div>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div class="how-section" id="how">
+    <div class="section-eyebrow">How it works</div>
+    <h2 class="section-title">From zero to <em>perfect route</em><br>in four steps</h2>
+    <div class="steps">
+      <div class="step" data-delay="0">
+        <div class="step-track"><div class="step-num">1</div><div class="step-line"></div></div>
+        <div class="step-body">
+          <div class="step-title">Pick your start & destination</div>
+          <div class="step-desc">Choose from 8 real attractions across the city — or tap "Use My Location" and GPS auto-selects the nearest one as your starting point.</div>
+        </div>
+      </div>
+      <div class="step" data-delay="120">
+        <div class="step-track"><div class="step-num">2</div><div class="step-line"></div></div>
+        <div class="step-body">
+          <div class="step-title">Set your transport & priority</div>
+          <div class="step-desc">Choose car, bike, bus, or walking. Then tell RouteWise whether you care most about distance, cost, or time — and it optimises for exactly that.</div>
+        </div>
+      </div>
+      <div class="step" data-delay="240">
+        <div class="step-track"><div class="step-num">3</div><div class="step-line"></div></div>
+        <div class="step-body">
+          <div class="step-title">Get your live-enriched route</div>
+          <div class="step-desc">The algorithm runs Dijkstra's over the city graph while pulling live traffic and weather for every road segment. High-traffic roads show bypass alternatives instantly.</div>
+        </div>
+      </div>
+      <div class="step" data-delay="360">
+        <div class="step-track"><div class="step-num">4</div><div class="step-line"></div></div>
+        <div class="step-body">
+          <div class="step-title">Follow the map & explore</div>
+          <div class="step-desc">Your route appears on an interactive map with your GPS dot moving in real time. Every scenic waypoint is marked, and the full cost breakdown is itemised to the last rupee.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA BANNER -->
+  <div class="cta-banner">
+    <div class="cta-text">
+      <div class="cta-label">Ready to explore?</div>
+      <h2 class="cta-title">Start planning your<br><em>next perfect trip</em></h2>
+      <div class="cta-note">Free forever · No credit card · Instant access</div>
+    </div>
+    <div class="cta-actions">
+      <a class="btn-white" href="#" onclick="openModal('signup')">
+        Create Free Account
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <a class="btn-outline-white" href="#" onclick="openModal('login')">Already have an account</a>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <span>🗺️ <strong style="color:var(--ink-2)">RouteWise</strong></span>
+    <span>Powered by Dijkstra's Algorithm &amp; Open-Meteo</span>
+    <span>© 2025 RouteWise</span>
+    <a href="#" onclick="openModal('login')">Log In</a>
+    <a href="#" onclick="openModal('signup')">Sign Up</a>
+  </footer>
+</div>
+
+<script>
+/* ── MARQUEE CHIPS ── */
+const attractions = [
+  {icon:'🏖️', name:'Beach',  cat:'Nature'},
+  {icon:'🏛️', name:'Museum', cat:'Culture'},
+  {icon:'🌳', name:'Park',   cat:'Nature'},
+  {icon:'🛕', name:'Temple', cat:'Heritage'},
+  {icon:'⚓', name:'Harbor', cat:'Scenic'},
+  {icon:'🏯', name:'Fort',   cat:'Heritage'},
+  {icon:'🦁', name:'Zoo',    cat:'Wildlife'},
+  {icon:'🛍️', name:'Mall',   cat:'Shopping'},
+];
+const mk = document.getElementById('marquee');
+const all = [...attractions, ...attractions]; // double for seamless loop
+all.forEach(a => {
+  const c = document.createElement('div');
+  c.className = 'marquee-chip';
+  c.innerHTML = `<span class="mc-icon">${a.icon}</span><span>${a.name}</span><span class="mc-cat">${a.cat}</span>`;
+  mk.appendChild(c);
+});
+
+/* ── DEMO CARD ANIMATION ── */
+window.addEventListener('load', () => {
+  document.querySelectorAll('.demo-stop[data-delay],.demo-road[data-delay]').forEach(el => {
+    setTimeout(() => el.classList.add('in'), 400 + parseInt(el.dataset.delay));
+  });
+  // features
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const el = e.target;
+        const d  = parseInt(el.dataset.delay || 0);
+        setTimeout(() => el.classList.add('in'), d);
+        io.unobserve(el);
+      }
+    });
+  }, {threshold: 0.15});
+  document.querySelectorAll('.feat-card,.stat-box,.step').forEach(el => io.observe(el));
+});
+
+/* ── MODAL ── */
+function openModal(tab) {
+  document.getElementById('authModal').classList.add('open');
+  switchTab(tab || 'login');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal() {
+  document.getElementById('authModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function switchTab(tab) {
+  document.querySelectorAll('.modal-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('tabLogin').style.display  = tab === 'login'  ? 'block' : 'none';
+  document.getElementById('tabSignup').style.display = tab === 'signup' ? 'block' : 'none';
+}
+
+document.getElementById('modalClose').addEventListener('click', closeModal);
+document.getElementById('authModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('authModal')) closeModal();
+});
+document.querySelectorAll('.modal-tab').forEach(tab => {
+  tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+});
+
+/* Password strength */
+const pwField = document.getElementById('pwSignup');
+const pwBar   = document.getElementById('pwBar');
+pwField && pwField.addEventListener('input', () => {
+  const v = pwField.value, l = v.length;
+  let str = 0;
+  if (l >= 6) str++;
+  if (l >= 10) str++;
+  if (/[A-Z]/.test(v)) str++;
+  if (/[0-9]/.test(v)) str++;
+  if (/[^a-zA-Z0-9]/.test(v)) str++;
+  const colors = ['','#be123c','#b45309','#0d7377','#15803d','#15803d'];
+  const widths  = ['0%','25%','50%','75%','100%','100%'];
+  pwBar.style.width      = widths[str]  || '0%';
+  pwBar.style.background = colors[str] || 'var(--bdr)';
+});
+
+/* Smooth scroll */
+document.querySelector('a[href="#how"]').addEventListener('click', e => {
+  e.preventDefault();
+  document.getElementById('how').scrollIntoView({behavior:'smooth'});
+});
+</script>
+</body>
+</html>
